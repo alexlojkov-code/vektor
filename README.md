@@ -2,7 +2,7 @@
 
 Рабочее место маркетолога: AI-чат по 16 направлениям маркетинга, to do list и калькулятор маркетинговых метрик.
 
-**Сайт:** https://marketing-pilot-five.vercel.app (проект Vercel `marketing-pilot`)
+**Сайт:** https://vektor-ai-marketing.vercel.app (проект Vercel `vektor`; старый адрес marketing-pilot-five.vercel.app тоже работает)
 **Код:** https://github.com/alexlojkov-code/vektor (приватный репозиторий)
 
 - [PRD.md](PRD.md) — продуктовые требования: проблема, аудитория, направления, функции, метрики успеха.
