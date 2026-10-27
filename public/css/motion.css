@@ -1,0 +1,238 @@
+/* Анимации лендинга по мотивам plavno.ru. Подключается только на index.html — приложение не затрагивает.
+   Свойства: transform и opacity (+ filter только в разовых появлениях). Всё движение отключается
+   или смягчается при prefers-reduced-motion. */
+:root {
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+  interpolate-size: allow-keywords;
+}
+
+/* Контент поверх декоративных объектов */
+.section-light { overflow: clip; }
+.section-dark > .wrap, .section-light > .wrap, .hero-inner { z-index: 1; }
+
+/* ---------- Появление hero при загрузке: из размытия, каскадом ---------- */
+.hero-title .line { display: block; overflow: hidden; padding: 0 .04em .1em; margin-bottom: -.1em; }
+.hero-title .line > span { display: inline-block; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .intro { animation: intro-in 1100ms var(--ease-out-strong) both; }
+  .hero-title .intro { animation-name: line-up; animation-duration: 1200ms; }
+  .hero-stage.intro { animation-name: stage-in; animation-duration: 1400ms; }
+  .nav.intro { animation-name: nav-in; animation-duration: 900ms; }
+  .intro-1 { animation-delay: 120ms; }
+  .intro-2 { animation-delay: 220ms; }
+  .intro-3 { animation-delay: 330ms; }
+  .intro-4 { animation-delay: 480ms; }
+  .intro-5 { animation-delay: 580ms; }
+  .intro-6 { animation-delay: 700ms; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .intro { animation: fade-in 600ms ease both; }
+}
+@keyframes intro-in { from { opacity: 0; transform: translateY(28px); filter: blur(12px); } }
+@keyframes line-up { from { opacity: 0; transform: translateY(105%); filter: blur(8px); } }
+@keyframes stage-in { from { opacity: 0; transform: translateY(80px) scale(.96); filter: blur(16px); } }
+@keyframes nav-in { from { opacity: 0; transform: translate(-50%, -24px); } }
+
+/* ---------- Hero: гигантское слово за мокапом, мокап «встаёт» при скролле ---------- */
+.hero-stage { position: relative; margin-top: 64px; }
+.hero-word {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 0;
+  font-size: clamp(88px, 21vw, 320px); font-weight: 800; line-height: .8; letter-spacing: -.05em;
+  text-align: center; white-space: nowrap; pointer-events: none; user-select: none;
+  background: linear-gradient(180deg, rgba(205, 184, 255, .6) 0%, rgba(139, 94, 255, .22) 55%, rgba(139, 94, 255, 0) 92%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  will-change: transform, opacity;
+}
+.mock-3d { position: relative; z-index: 1; margin-top: clamp(56px, 10.5vw, 168px); perspective: 1400px; }
+.mock-3d::before {
+  content: ''; position: absolute; left: 10%; right: 10%; bottom: -60px; height: 160px; z-index: -1;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(139, 94, 255, .55), transparent 70%); filter: blur(30px);
+}
+.hero-stage .mock { margin: 0 auto; transform-origin: 50% 0; will-change: transform; }
+@media (prefers-reduced-motion: no-preference) {
+  .hero-stage .mock { transform: rotateX(16deg) scale(.94); }
+}
+
+/* ---------- Медленно плывущие свечения ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .orb-1 { animation: orb-a 18s ease-in-out infinite alternate; }
+  .orb-2 { animation: orb-b 22s ease-in-out infinite alternate; }
+  .orb-3 { animation: orb-a 20s ease-in-out infinite alternate-reverse; }
+}
+@keyframes orb-a { to { transform: translate(90px, -50px) scale(1.12); } }
+@keyframes orb-b { to { transform: translate(-80px, 60px) scale(.92); } }
+
+/* ---------- 3D-объекты (Three.js): слоты задают место, рисует общий холст .scene3d ---------- */
+.scene3d { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+.obj3d { position: absolute; z-index: 0; pointer-events: none; aspect-ratio: 1; }
+.obj-hero-l { width: 300px; left: 2%; top: 360px; }
+.obj-hero-r { width: 300px; right: 1%; top: 96px; }
+.obj-features { width: 300px; right: -20px; top: 0; }
+.obj-directions { width: 300px; left: -40px; top: 10px; }
+.obj-calc { width: 260px; left: 6%; bottom: 30px; }
+@media (max-width: 900px) { .obj-calc { width: 200px; left: auto; right: -40px; bottom: auto; top: 10px; } }
+.obj-cta-l { width: 280px; left: 4%; top: 10%; }
+.obj-cta-r { width: 300px; right: 3%; top: 2%; }
+@media (max-width: 1240px) {
+  .obj-hero-l { width: 200px; left: -70px; top: 420px; }
+  .obj-hero-r { width: 220px; right: -60px; top: 80px; }
+  .obj-features, .obj-directions { width: 230px; }
+  .obj-cta-l { width: 200px; left: -40px; top: 45%; }
+  .obj-cta-r { width: 220px; right: -60px; top: 0; }
+}
+@media (max-width: 760px) {
+  .obj-hero-l { width: 130px; left: -50px; top: 470px; }
+  .obj-hero-r { width: 140px; right: -44px; top: 70px; }
+  .obj-features, .obj-directions { width: 160px; }
+  .obj-features { width: 140px; right: -36px; top: -60px; }
+  .obj-directions { left: -50px; top: -10px; }
+  .obj-calc { width: 150px; right: -40px; top: 0; }
+  .obj-cta-l { display: none; }
+  .obj-cta-r { width: 160px; right: -46px; top: -40px; }
+}
+
+/* ---------- Появление блоков при прокрутке (класс .is-in ставит JS один раз) ---------- */
+@media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+  [data-reveal] {
+    opacity: 0; transform: translateY(40px) scale(.98); filter: blur(6px);
+    transition: opacity 900ms var(--ease-out-strong), transform 900ms var(--ease-out-strong), filter 900ms var(--ease-out-strong);
+  }
+  [data-reveal].is-in { opacity: 1; transform: none; filter: none; }
+  [data-split] .line { display: block; overflow: hidden; padding-bottom: .08em; margin-bottom: -.08em; }
+  [data-split] .line > span { display: inline-block; transform: translateY(110%); transition: transform 1000ms var(--ease-out-strong); }
+  [data-split].is-in .line > span { transform: none; }
+  /* Если скрипт не загрузился, контент всё равно появится */
+  html:not(.motion-ready) [data-reveal], html:not(.motion-ready) [data-split] .line > span { animation: reveal-fallback 1ms 2s forwards; }
+}
+@media (scripting: enabled) and (prefers-reduced-motion: reduce) {
+  [data-reveal] { opacity: 0; transition: opacity 500ms ease; }
+  [data-reveal].is-in { opacity: 1; }
+  html:not(.motion-ready) [data-reveal] { animation: reveal-fallback 1ms 2s forwards; }
+}
+@keyframes reveal-fallback { to { opacity: 1; transform: none; filter: none; } }
+
+/* ---------- Карточки модулей: живой градиент, блик за курсором, наклон ---------- */
+.feature-slot { display: flex; perspective: 1000px; }
+.feature-slot > .feature { flex: 1; transition: transform 500ms var(--ease-out-strong), box-shadow 400ms ease; }
+.feature > * { position: relative; z-index: 1; }
+.feature > .feature-num { position: absolute; }
+.feature::after {
+  content: ''; position: absolute; inset: -40%; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(30% 30% at 30% 30%, rgba(196, 170, 255, .45), transparent 70%),
+    radial-gradient(28% 28% at 72% 68%, rgba(107, 63, 214, .7), transparent 70%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .feature::after { animation: blob 14s ease-in-out infinite alternate; }
+  .feature-slot:nth-child(2) .feature::after { animation-delay: -5s; }
+  .feature-slot:nth-child(3) .feature::after { animation-delay: -9s; }
+}
+@keyframes blob { to { transform: translate(14%, -10%) rotate(28deg); } }
+
+.spot {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0; border-radius: inherit;
+  background: radial-gradient(280px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, .2), transparent 60%);
+  transition: opacity 300ms ease;
+}
+.dir-card .spot { background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), rgba(139, 94, 255, .14), transparent 60%); }
+@media (hover: hover) and (pointer: fine) {
+  .feature:hover { box-shadow: 0 40px 80px -30px rgba(139, 94, 255, .6); }
+  [data-tilt]:hover .spot, [data-spot]:hover .spot { opacity: 1; }
+}
+
+/* ---------- Бегущие строки ---------- */
+.ticker { position: relative; padding: 48px 0 64px; background: var(--bg); overflow: hidden; }
+.ticker-band { display: flex; width: 112vw; margin-left: -6vw; padding: 18px 0; overflow: hidden; }
+.ticker-band-a { position: relative; z-index: 1; background: var(--accent); transform: rotate(-2deg); box-shadow: 0 20px 50px -20px rgba(139, 94, 255, .7); }
+.ticker-band-b { background: #1E1630; border-block: 1px solid rgba(189, 173, 206, .12); transform: rotate(1.6deg); margin-top: -14px; }
+.ticker-track { display: flex; flex: none; align-items: center; }
+.ticker-item-group { display: flex; flex: none; }
+.ticker-item { display: inline-flex; align-items: center; gap: 28px; padding-right: 28px; color: #fff; font-size: clamp(20px, 2.6vw, 34px); font-weight: 700; letter-spacing: -.02em; white-space: nowrap; }
+.ticker-band-b .ticker-item { color: var(--lavender); font-weight: 600; }
+.ticker-sep { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, .55); flex: none; }
+.ticker-band-b .ticker-sep { background: var(--accent); }
+@media (prefers-reduced-motion: no-preference) {
+  .ticker-track { animation: ticker 55s linear infinite; }
+  .ticker-reverse { animation-duration: 70s; animation-direction: reverse; }
+}
+@media (hover: hover) and (pointer: fine) {
+  .ticker-band:hover .ticker-track { animation-play-state: paused; }
+}
+@keyframes ticker { to { transform: translateX(-50%); } }
+
+/* ---------- Карточки направлений ---------- */
+.dir-card { position: relative; overflow: hidden; }
+.dir-card > * { position: relative; z-index: 1; }
+.dir-card .mono { transition: transform 500ms var(--ease-out-strong); }
+.dir-arrow { margin-left: auto; width: 18px; height: 18px; flex: none; color: var(--accent-deep); opacity: 0; transform: translateX(-8px); transition: opacity 250ms ease, transform 400ms var(--ease-out-strong); }
+@media (hover: hover) and (pointer: fine) {
+  .dir-card:hover .mono { transform: rotate(-8deg) scale(1.1); }
+  .dir-card:hover .dir-arrow { opacity: 1; transform: none; }
+}
+
+/* ---------- Шаги: линия прогресса заполняется по скроллу ---------- */
+.steps-wrap { position: relative; margin-top: 56px; }
+.steps-wrap .steps { margin-top: 0; }
+.steps-line { position: absolute; left: 0; right: 0; top: -28px; height: 2px; border-radius: 2px; background: rgba(58, 9, 114, .1); overflow: hidden; }
+.steps-line-fill { height: 100%; background: linear-gradient(90deg, #8B5EFF, #3A0972); transform-origin: 0 50%; will-change: transform; }
+@media (prefers-reduced-motion: no-preference) {
+  .steps-line-fill { transform: scaleX(0); }
+  .steps li > span { transition: transform 700ms var(--ease-out-strong), background-color 400ms ease, color 400ms ease; transform: scale(.9); }
+  .steps li.is-in > span { transform: none; }
+}
+.steps li.is-in > span { background: var(--accent); color: #fff; }
+@media (max-width: 900px) {
+  .steps-wrap { margin-top: 40px; padding-left: 22px; }
+  .steps-line { left: 0; right: auto; top: 0; bottom: 0; width: 2px; height: auto; }
+  .steps-line-fill { width: 100%; height: 100%; transform-origin: 50% 0; }
+}
+@media (max-width: 900px) and (prefers-reduced-motion: no-preference) {
+  .steps-line-fill { transform: scaleY(0); }
+}
+
+/* ---------- Кнопки: блик и подъём ---------- */
+.btn-sheen { position: relative; overflow: hidden; isolation: isolate; transition: transform 250ms var(--ease-out-strong), box-shadow 250ms ease, background-color 150ms ease; }
+.btn-sheen::after {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, .45) 50%, transparent 70%);
+  transform: translateX(-120%);
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-sheen:hover { transform: translateY(-2px); box-shadow: 0 14px 34px -12px rgba(139, 94, 255, .8); }
+  .btn-sheen:hover::after { transform: translateX(120%); transition: transform 800ms var(--ease-out-strong); }
+  .btn-sheen:active { transform: scale(.97); }
+}
+
+/* ---------- Навигация: подчёркивание растёт слева ---------- */
+.nav-links a { position: relative; }
+.nav-links a::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -6px; height: 1.5px; border-radius: 1px;
+  background: currentColor; transform: scaleX(0); transform-origin: 100% 50%; transition: transform 400ms var(--ease-out-strong);
+}
+@media (hover: hover) and (pointer: fine) {
+  .nav-links a:hover::after { transform: scaleX(1); transform-origin: 0 50%; }
+}
+
+/* ---------- FAQ: плавное раскрытие ---------- */
+.faq details { transition: border-color 250ms ease, box-shadow 250ms ease; }
+.faq details[open] { border-color: rgba(139, 94, 255, .35); box-shadow: 0 20px 40px -24px rgba(58, 9, 114, .35); }
+@media (prefers-reduced-motion: no-preference) {
+  .faq details::details-content { height: 0; overflow: clip; transition: height 450ms var(--ease-out-strong), content-visibility 450ms allow-discrete; }
+  .faq details[open]::details-content { height: auto; }
+}
+@media (hover: hover) and (pointer: fine) {
+  .faq details:hover { border-color: rgba(139, 94, 255, .3); }
+}
+
+/* ---------- Финальный CTA: дышащее свечение ---------- */
+.cta-final { overflow: hidden; }
+.cta-final::before {
+  content: ''; position: absolute; left: 50%; bottom: -260px; width: 900px; height: 520px; margin-left: -450px;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(139, 94, 255, .5), transparent 70%); pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cta-final::before { animation: breathe 6s ease-in-out infinite alternate; }
+}
+@keyframes breathe { from { opacity: .55; transform: scale(.9); } to { opacity: 1; transform: scale(1.08); } }

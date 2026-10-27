@@ -1,0 +1,166 @@
+/* Liquid Glass — съёмный слой поверх проекта. Включается атрибутом data-glass на <html>.
+   Убрать эффект: удалить <link> на этот файл и <script> liquid-glass.js из index.html и app.html.
+   По гайдлайнам Apple стекло только у функционального слоя (навигация, панели, поле ввода,
+   модальные окна, уведомления, второстепенные кнопки); контент остаётся непрозрачным. */
+
+html[data-glass] {
+  --lg-fill: rgba(28, 18, 50, .38);          /* обычное стекло */
+  --lg-fill-thick: rgba(22, 14, 40, .62);    /* толстое: много текста (боковая панель, окна) */
+  --lg-edge: rgba(255, 255, 255, .16);
+  --lg-rim-hi: rgba(255, 255, 255, .55);
+  --lg-rim-lo: rgba(255, 255, 255, .06);
+  --lg-glow: rgba(255, 255, 255, .07);
+  --lg-shadow: 0 12px 40px -12px rgba(4, 1, 12, .7), 0 2px 6px rgba(4, 1, 12, .25);
+  --lg-blur: 18px;
+  --lg-blur-thick: 30px;
+  --lg-sheen: rgba(255, 255, 255, .14);
+  --lg-ambient-1: rgba(139, 94, 255, .26);
+  --lg-ambient-2: rgba(107, 63, 214, .22);
+  --lg-ambient-3: rgba(61, 214, 200, .08);
+}
+html[data-glass][data-theme="light"] {
+  --lg-fill: rgba(255, 255, 255, .5);
+  --lg-fill-thick: rgba(255, 255, 255, .72);
+  --lg-edge: rgba(255, 255, 255, .75);
+  --lg-rim-hi: rgba(255, 255, 255, .95);
+  --lg-rim-lo: rgba(58, 9, 114, .08);
+  --lg-glow: rgba(255, 255, 255, .35);
+  --lg-shadow: 0 12px 36px -14px rgba(58, 9, 114, .3), 0 2px 6px rgba(58, 9, 114, .08);
+  --lg-sheen: rgba(255, 255, 255, .5);
+  --lg-ambient-1: rgba(139, 94, 255, .22);
+  --lg-ambient-2: rgba(181, 150, 255, .3);
+  --lg-ambient-3: rgba(61, 214, 200, .1);
+}
+@media (prefers-color-scheme: light) {
+  html[data-glass][data-theme="system"] {
+    --lg-fill: rgba(255, 255, 255, .5);
+    --lg-fill-thick: rgba(255, 255, 255, .72);
+    --lg-edge: rgba(255, 255, 255, .75);
+    --lg-rim-hi: rgba(255, 255, 255, .95);
+    --lg-rim-lo: rgba(58, 9, 114, .08);
+    --lg-glow: rgba(255, 255, 255, .35);
+    --lg-shadow: 0 12px 36px -14px rgba(58, 9, 114, .3), 0 2px 6px rgba(58, 9, 114, .08);
+    --lg-sheen: rgba(255, 255, 255, .5);
+    --lg-ambient-1: rgba(139, 94, 255, .22);
+    --lg-ambient-2: rgba(181, 150, 255, .3);
+    --lg-ambient-3: rgba(61, 214, 200, .1);
+  }
+}
+
+/* ---------- Материал ---------- */
+/* Положение не трогаем: шапка, панели и таб-бар закреплены (fixed/sticky) */
+html[data-glass] :is(.composer, .modal, .toast, .segmented, .btn-ghost) { position: relative; }
+html[data-glass] :is(.nav, .sidebar, .topbar, .tabbar, .composer, .modal, .toast, .segmented, .btn-ghost) {
+  isolation: isolate;
+  background: var(--lg-fill);
+  border: 1px solid var(--lg-edge);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(1.6) brightness(1.04);
+  backdrop-filter: blur(var(--lg-blur)) saturate(1.6) brightness(1.04);
+  box-shadow: var(--lg-shadow), inset 0 1px 0 var(--lg-glow), inset 0 0 18px var(--lg-glow);
+}
+/* Толстое стекло там, где много текста */
+html[data-glass] :is(.sidebar, .modal) {
+  background: var(--lg-fill-thick);
+  -webkit-backdrop-filter: blur(var(--lg-blur-thick)) saturate(1.5);
+  backdrop-filter: blur(var(--lg-blur-thick)) saturate(1.5);
+}
+
+/* Блик по кромке: светлый сверху-слева, тёмный снизу-справа — кольцо толщиной 1,5 px через маску */
+html[data-glass] :is(.nav, .sidebar, .topbar, .tabbar, .composer, .modal, .toast, .segmented, .btn-ghost, .btn-primary)::before {
+  content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  border-radius: inherit; padding: 1.5px;
+  background: linear-gradient(140deg, var(--lg-rim-hi) 0%, var(--lg-rim-lo) 32%, transparent 55%, var(--lg-rim-lo) 75%, var(--lg-rim-hi) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+/* Мягкий блик, который следует за курсором (координаты пишет liquid-glass.js) */
+html[data-glass] :is(.nav, .sidebar, .tabbar, .composer, .modal, .btn-ghost)::after {
+  content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; border-radius: inherit;
+  background: radial-gradient(240px circle at var(--lg-x, 30%) var(--lg-y, -40%), var(--lg-sheen), transparent 60%);
+  opacity: .9; transition: opacity 300ms ease;
+}
+html[data-glass] :is(.nav, .sidebar, .tabbar, .composer, .modal, .btn-ghost) > * { position: relative; z-index: 2; }
+html[data-glass] .nav > .btn { position: relative; }
+
+/* Главная кнопка — «тонированное стекло»: остаётся цветной, получает кромку и глубину */
+html[data-glass] .btn-primary {
+  position: relative;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 -2px 6px rgba(40, 10, 90, .35), 0 8px 24px -10px rgba(139, 94, 255, .8);
+}
+html[data-glass] .btn-primary.btn-sheen::before { z-index: 1; }
+
+/* ---------- Цветной фон под стеклом: бренд уходит в слой контента ---------- */
+html[data-glass] body.app {
+  background:
+    radial-gradient(55% 45% at 8% 0%, var(--lg-ambient-1), transparent 70%),
+    radial-gradient(45% 55% at 100% 100%, var(--lg-ambient-2), transparent 70%),
+    radial-gradient(35% 35% at 70% 30%, var(--lg-ambient-3), transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+/* ---------- Лендинг: шапка-пилюля ---------- */
+html[data-glass] .nav { --lg-fill: rgba(20, 12, 38, .32); }
+html[data-glass] .nav.scrolled { --lg-fill: rgba(20, 12, 38, .5); }
+html[data-glass] .section-light .btn-ghost { --lg-fill: rgba(255, 255, 255, .5); --lg-edge: rgba(255, 255, 255, .8); color: var(--accent-deep); }
+
+/* ---------- Приложение: плавающие панели ---------- */
+@media (min-width: 1024px) {
+  html[data-glass] .sidebar { inset: 12px auto 12px 12px; border-radius: 26px; }
+  html[data-glass] .shell { margin-left: 288px; }
+}
+@media (max-width: 1023px) {
+  html[data-glass] .sidebar { inset: 10px auto 10px 10px; border-radius: 26px; transform: translateX(calc(-100% - 20px)); }
+  html[data-glass] .sidebar.open { transform: none; }
+  html[data-glass] .topbar { margin: 8px 8px 0; border-radius: var(--r-pill); top: 8px; }
+  html[data-glass] .tabbar {
+    left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom));
+    padding: 6px; border-radius: 30px;
+  }
+  html[data-glass] .shell { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  html[data-glass] .chat { height: calc(100dvh - 64px - 96px - env(safe-area-inset-bottom)); }
+  html[data-glass] .tabbar a[aria-current="page"] { background: color-mix(in srgb, var(--accent) 18%, transparent); border-radius: 22px; }
+}
+
+/* Поле ввода чата парит над перепиской; переписка уходит под него и мягко гаснет у края */
+html[data-glass] .chat { position: relative; }
+html[data-glass] .chat .composer-wrap {
+  position: absolute; left: 24px; right: 24px; bottom: 0; z-index: 3; padding: 28px 0 14px;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--bg) 70%, transparent) 55%);
+}
+html[data-glass] .chat .log { padding-bottom: 150px; -webkit-mask: linear-gradient(to bottom, transparent 0, #000 24px); mask: linear-gradient(to bottom, transparent 0, #000 24px); }
+@media (max-width: 1023px) { html[data-glass] .chat .composer-wrap { left: 12px; right: 12px; } }
+html[data-glass] .composer:focus-within { border-color: color-mix(in srgb, var(--accent) 70%, var(--lg-edge)); }
+
+/* Модальные окна и уведомления */
+html[data-glass] .modal-backdrop { background: color-mix(in srgb, var(--scrim) 70%, transparent); }
+
+/* ---------- Доступность ---------- */
+@media (prefers-reduced-transparency: reduce) {
+  html[data-glass] :is(.nav, .sidebar, .topbar, .tabbar, .composer, .modal, .toast, .segmented, .btn-ghost) {
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+    background: var(--surface); border-color: var(--border-strong);
+  }
+  html[data-glass] .nav { background: #150F20; }
+  html[data-glass] :is(.nav, .sidebar, .tabbar, .composer, .modal, .btn-ghost)::after { display: none; }
+}
+@media (prefers-contrast: more) {
+  html[data-glass] :is(.nav, .sidebar, .topbar, .tabbar, .composer, .modal, .toast, .segmented, .btn-ghost) {
+    background: var(--surface); border: 1.5px solid var(--text-2);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-glass] :is(.nav, .sidebar, .tabbar, .composer, .modal, .btn-ghost)::after { display: none; }
+}
+html[data-glass] .toast-error { border-color: color-mix(in srgb, var(--bad) 60%, transparent); }
+html[data-glass] .toast-success { border-color: color-mix(in srgb, var(--good) 60%, transparent); }
+
+/* Экран «Новый чат»: поле ввода прилипает к низу, контент под ним гаснет, а не наезжает на подсказку */
+html[data-glass] .chat-home .composer-wrap {
+  margin: 0 -12px; padding: 24px 12px 10px;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--bg) 82%, transparent) 45%);
+}
+@media (max-width: 1023px) {
+  html[data-glass] .chat-home .composer-wrap { bottom: calc(80px + env(safe-area-inset-bottom)); }
+}

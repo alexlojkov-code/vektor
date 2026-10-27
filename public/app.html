@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ru" data-theme="dark" data-glass>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Вектор — рабочее место маркетолога</title>
+  <meta name="theme-color" content="#0D071A">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/liquid-glass.css">
+</head>
+<body class="app">
+  <a class="skip" href="#main">К содержимому</a>
+  <aside class="sidebar" id="sidebar" aria-label="Навигация">
+    <div class="sidebar-head">
+      <a href="index.html" class="logo"><span class="logo-mark" aria-hidden="true"></span>ВЕКТОР</a>
+      <button class="btn btn-icon sidebar-close" id="sidebar-close" aria-label="Закрыть меню"></button>
+    </div>
+    <a class="btn btn-primary new-chat" href="#/chat"></a>
+    <nav class="side-nav" id="side-nav"></nav>
+    <div class="side-section">
+      <p class="side-label">Недавние чаты</p>
+      <ul class="chat-list" id="chat-list"></ul>
+    </div>
+    <div class="side-foot">
+      <button class="btn btn-ghost btn-sm" id="theme-toggle" type="button"></button>
+    </div>
+  </aside>
+  <div class="sidebar-scrim" id="sidebar-scrim" hidden></div>
+
+  <div class="shell">
+    <header class="topbar">
+      <button class="btn btn-icon" id="menu-btn" aria-label="Открыть меню" aria-controls="sidebar"></button>
+      <a href="index.html" class="logo"><span class="logo-mark" aria-hidden="true"></span>ВЕКТОР</a>
+      <span class="topbar-gap"></span>
+    </header>
+    <main id="main" tabindex="-1"></main>
+  </div>
+
+  <nav class="tabbar" id="tabbar" aria-label="Разделы"></nav>
+
+  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/liquid-glass.js"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "name": "vektor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Вектор — AI-ассистент для маркетологов: чат по направлениям, задачи, калькулятор метрик",
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "start": "node scripts/dev.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "build:3d": "esbuild src/scene3d.js --bundle --format=esm --minify --target=es2020 --outfile=public/js/scene3d.min.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "three": "0.186.1"
+  }
+}
