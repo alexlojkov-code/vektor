@@ -294,3 +294,40 @@ main { outline: none; }
 /* Одноколоночные сетки: колонка не шире контейнера, длинные строки обрезаются многоточием */
 .chat, .recent, .task-list, .chat-list, .cards, .funnel, .step-list, .side-nav,
 .result-col, .funnel-out, .calc-form, .column, .metric-group, .task-group { grid-template-columns: minmax(0, 1fr); }
+
+/* ---------- Аккаунт и синхронизация ---------- */
+.side-foot { display: grid; gap: 8px; }
+.account-btn {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 8px 12px;
+  border: 1px solid var(--border); border-radius: var(--r-lg); background: transparent; color: var(--text);
+  text-align: left; cursor: pointer; transition: background-color var(--t-fast), border-color var(--t-fast);
+}
+.account-btn:hover { background: var(--surface-2); border-color: var(--border-strong); }
+.account-btn svg { width: 20px; height: 20px; flex: none; color: var(--accent); }
+.account-text { display: grid; min-width: 0; }
+.account-text b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-text small { font-size: 11px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sync-dot { width: 8px; height: 8px; margin: 0 4px; border-radius: 50%; flex: none; background: var(--text-3); }
+.sync-dot[data-status="synced"] { background: var(--good); }
+.sync-dot[data-status="syncing"] { background: var(--accent); }
+.sync-dot[data-status="offline"], .sync-dot[data-status="error"] { background: var(--ok); }
+@media (prefers-reduced-motion: no-preference) {
+  .sync-dot[data-status="syncing"] { animation: sync-pulse 1s ease-in-out infinite alternate; }
+}
+@keyframes sync-pulse { from { opacity: .35; } }
+
+.auth-tabs { justify-self: start; }
+.auth-form { display: grid; gap: 14px; }
+.auth-form .btn-primary { margin-top: 4px; }
+.form-error { margin: 0; padding: 10px 12px; border-radius: var(--r-md); background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--text); font-size: 14px; }
+.btn-link { justify-self: center; padding: 6px; border: 0; background: none; color: var(--text-2); font: inherit; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.btn-link:hover { color: var(--text); }
+.recovery-code { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 16px; border: 1px dashed var(--border-strong); border-radius: var(--r-lg); background: var(--surface-2); }
+.recovery-code code { font-size: 20px; font-weight: 700; letter-spacing: .08em; user-select: all; }
+.account-card { display: flex; align-items: center; gap: 14px; }
+.account-card b { overflow-wrap: anywhere; }
+.account-avatar { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; flex: none; background: var(--accent); color: var(--on-accent); font-weight: 700; font-size: 18px; }
+.account-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.danger-zone summary { cursor: pointer; color: var(--text-3); font-size: 14px; }
+.danger-zone[open] summary { margin-bottom: 12px; }
+.btn-danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 50%, transparent); }

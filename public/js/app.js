@@ -5,6 +5,8 @@ import { directionById } from './directions.js';
 import { renderChatHome, renderChat, aiStatus } from './chat.js';
 import { renderTasks, taskRow, bindTaskRows, openTaskEditor } from './tasks.js';
 import { renderCalcCatalog, renderMetric, renderFunnel } from './calc.js';
+import { setCurrency } from './metrics.js';
+import { initAccount } from './account.js';
 
 const main = document.getElementById('main');
 const NAV = [
@@ -190,8 +192,8 @@ const BRAND_FIELDS = [
   ['usp', 'УТП', 'textarea', 'Чем вы лучше альтернатив', 300],
   ['competitors', 'Конкуренты', 'input', 'Основные конкуренты через запятую', 300],
   ['tone', 'Tone of voice', 'input', 'Например: дружелюбный, на «ты», с юмором', 200],
-  ['geo', 'География', 'input', 'Город, регион или «онлайн, вся Россия»', 100],
-  ['budget', 'Маркетинговый бюджет', 'input', 'Например: 300 000 ₽ в месяц', 100],
+  ['geo', 'География', 'input', 'Город, регион или «онлайн, весь Узбекистан»', 100],
+  ['budget', 'Маркетинговый бюджет', 'input', 'Например: 30 млн сум или $2 500 в месяц', 100],
 ];
 
 function renderBrand() {
@@ -199,7 +201,7 @@ function renderBrand() {
     <div class="page page-narrow">
       <header class="page-head"><div>
         <h1>Профиль <span class="accent-word">бренда</span></h1>
-        <p class="muted">Ассистент учитывает эти данные в каждом ответе. Хранятся только в вашем браузере.</p>
+        <p class="muted">Ассистент учитывает эти данные в каждом ответе. Хранятся в браузере, а после входа в аккаунт — синхронизируются между устройствами.</p>
       </div></header>
       <form class="card form-grid" id="brand-form" novalidate>
         ${BRAND_FIELDS.map(([key, label, type, ph, max]) => `
@@ -225,7 +227,14 @@ function renderBrand() {
 }
 
 /* ---------- Старт ---------- */
+setCurrency(state.settings.currency);
 applyTheme();
 route();
 aiStatus();
+// Пришли данные с другого устройства: тема, валюта и текущий экран — по новым данным
+initAccount(() => {
+  setCurrency(state.settings.currency);
+  applyTheme();
+  route();
+});
 export { route };

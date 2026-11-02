@@ -23,6 +23,18 @@ const scale = (r, goodFrom, okFrom, texts) => {
 
 const I = (key, label, unit, hint) => ({ key, label, unit, ...(hint && { hint }) });
 
+/* ---------- валюта: денежные поля помечены MONEY, подпись и формат зависят от выбранной валюты ---------- */
+export const MONEY = 'money';
+export const CURRENCIES = {
+  uzs: { name: 'Сум', sign: 'сум' },
+  usd: { name: 'Доллар', sign: '$' },
+};
+let currency = 'uzs';
+export const getCurrency = () => currency;
+export function setCurrency(code) { if (CURRENCIES[code]) currency = code; }
+// Подпись единицы для поля: «сум», «$», «%», «шт»
+export const unitLabel = unit => (unit === MONEY ? CURRENCIES[currency].sign : unit);
+
 export const METRICS = [
   /* ---------- Реклама ---------- */
   {
@@ -39,46 +51,46 @@ export const METRICS = [
     }),
   },
   {
-    id: 'cpc', name: 'CPC', full: 'Цена клика', group: 'ads', unit: '₽',
+    id: 'cpc', name: 'CPC', full: 'Цена клика', group: 'ads', unit: MONEY,
     aliases: ['цена клика', 'cost per click', 'стоимость клика'],
-    inputs: [I('spend', 'Расход', '₽'), I('clicks', 'Клики', 'шт')],
+    inputs: [I('spend', 'Расход', MONEY), I('clicks', 'Клики', 'шт')],
     formula: 'Расход / Клики',
     about: 'Сколько в среднем стоит один переход на сайт.',
     compute: v => div(v.spend, v.clicks),
   },
   {
-    id: 'cpm', name: 'CPM', full: 'Цена 1000 показов', group: 'ads', unit: '₽',
+    id: 'cpm', name: 'CPM', full: 'Цена 1000 показов', group: 'ads', unit: MONEY,
     aliases: ['цена тысячи показов', 'cost per mille'],
-    inputs: [I('spend', 'Расход', '₽'), I('impressions', 'Показы', 'шт')],
+    inputs: [I('spend', 'Расход', MONEY), I('impressions', 'Показы', 'шт')],
     formula: 'Расход / Показы × 1000',
     about: 'Стоимость тысячи показов. Основная метрика охватных кампаний.',
     compute: v => { const r = div(v.spend, v.impressions); return r === null ? null : r * 1000; },
   },
   {
-    id: 'cpv', name: 'CPV', full: 'Цена просмотра', group: 'ads', unit: '₽',
+    id: 'cpv', name: 'CPV', full: 'Цена просмотра', group: 'ads', unit: MONEY,
     aliases: ['цена просмотра', 'cost per view', 'видео'],
-    inputs: [I('spend', 'Расход', '₽'), I('views', 'Просмотры', 'шт')],
+    inputs: [I('spend', 'Расход', MONEY), I('views', 'Просмотры', 'шт')],
     formula: 'Расход / Просмотры',
     about: 'Сколько стоит один просмотр видео или интеграции.',
     compute: v => div(v.spend, v.views),
   },
   {
-    id: 'cpa', name: 'CPA', full: 'Цена целевого действия', group: 'ads', unit: '₽',
+    id: 'cpa', name: 'CPA', full: 'Цена целевого действия', group: 'ads', unit: MONEY,
     aliases: ['цена действия', 'cost per action', 'cpo', 'цена заказа'],
-    inputs: [I('spend', 'Расход', '₽'), I('actions', 'Целевые действия', 'шт'), I('aov', 'Средний чек', '₽', 'необязательно — для сравнения с допустимым CPA'), I('margin', 'Маржинальность', '%', 'необязательно')],
+    inputs: [I('spend', 'Расход', MONEY), I('actions', 'Целевые действия', 'шт'), I('aov', 'Средний чек', MONEY, 'необязательно — для сравнения с допустимым CPA'), I('margin', 'Маржинальность', '%', 'необязательно')],
     formula: 'Расход / Целевые действия',
     about: 'Сколько стоит одно целевое действие: заказ, регистрация, звонок.',
     compute: v => div(v.spend, v.actions),
     assess: (r, v) => {
       if (!has(v.aov, v.margin)) return null;
       const max = v.aov * v.margin / 100;
-      return { level: level(r <= max * 0.7, r <= max), text: `Допустимый CPA при таком чеке и марже — ${fmt(max, '₽')}. ${r <= max ? 'Заказ окупается.' : 'Каждый заказ убыточен.'}` };
+      return { level: level(r <= max * 0.7, r <= max), text: `Допустимый CPA при таком чеке и марже — ${fmt(max, MONEY)}. ${r <= max ? 'Заказ окупается.' : 'Каждый заказ убыточен.'}` };
     },
   },
   {
-    id: 'cpl', name: 'CPL', full: 'Цена лида', group: 'ads', unit: '₽',
+    id: 'cpl', name: 'CPL', full: 'Цена лида', group: 'ads', unit: MONEY,
     aliases: ['цена лида', 'cost per lead', 'стоимость заявки'],
-    inputs: [I('spend', 'Расход', '₽'), I('leads', 'Лиды', 'шт')],
+    inputs: [I('spend', 'Расход', MONEY), I('leads', 'Лиды', 'шт')],
     formula: 'Расход / Лиды',
     about: 'Сколько стоит одна заявка или контакт потенциального клиента.',
     compute: v => div(v.spend, v.leads),
@@ -114,17 +126,17 @@ export const METRICS = [
     compute: v => pct(v.sales, v.leads),
   },
   {
-    id: 'aov', name: 'Средний чек', full: 'Average order value (AOV)', group: 'funnel', unit: '₽',
+    id: 'aov', name: 'Средний чек', full: 'Average order value (AOV)', group: 'funnel', unit: MONEY,
     aliases: ['aov', 'средний чек', 'average check'],
-    inputs: [I('revenue', 'Выручка', '₽'), I('orders', 'Заказы', 'шт')],
+    inputs: [I('revenue', 'Выручка', MONEY), I('orders', 'Заказы', 'шт')],
     formula: 'Выручка / Заказы',
     about: 'Сколько в среднем приносит один заказ.',
     compute: v => div(v.revenue, v.orders),
   },
   {
-    id: 'revenue', name: 'Выручка', full: 'Выручка', group: 'funnel', unit: '₽',
+    id: 'revenue', name: 'Выручка', full: 'Выручка', group: 'funnel', unit: MONEY,
     aliases: ['revenue', 'доход', 'оборот'],
-    inputs: [I('orders', 'Заказы', 'шт'), I('aov', 'Средний чек', '₽')],
+    inputs: [I('orders', 'Заказы', 'шт'), I('aov', 'Средний чек', MONEY)],
     formula: 'Заказы × Средний чек',
     about: 'Сумма продаж за период.',
     compute: v => (has(v.orders, v.aov) ? v.orders * v.aov : null),
@@ -134,7 +146,7 @@ export const METRICS = [
   {
     id: 'roi', name: 'ROI', full: 'Окупаемость инвестиций', group: 'roi', unit: '%',
     aliases: ['рои', 'return on investment', 'окупаемость'],
-    inputs: [I('income', 'Доход (прибыль до вычета вложений)', '₽'), I('cost', 'Вложения', '₽')],
+    inputs: [I('income', 'Доход (прибыль до вычета вложений)', MONEY), I('cost', 'Вложения', MONEY)],
     formula: '(Доход − Вложения) / Вложения × 100 %',
     about: 'Сколько рублей прибыли принёс каждый вложенный рубль.',
     compute: v => (has(v.income, v.cost) && v.cost !== 0 ? (v.income - v.cost) / v.cost * 100 : null),
@@ -143,7 +155,7 @@ export const METRICS = [
   {
     id: 'romi', name: 'ROMI', full: 'Окупаемость маркетинговых инвестиций', group: 'roi', unit: '%',
     aliases: ['роми', 'return on marketing investment', 'окупаемость маркетинга', 'окупаемость рекламы'],
-    inputs: [I('income', 'Доход от маркетинга', '₽'), I('margin', 'Маржинальность', '%', 'по умолчанию 100 % — укажите маржу для честного ROMI'), I('cost', 'Маркетинговые расходы', '₽')],
+    inputs: [I('income', 'Доход от маркетинга', MONEY), I('margin', 'Маржинальность', '%', 'по умолчанию 100 % — укажите маржу для честного ROMI'), I('cost', 'Маркетинговые расходы', MONEY)],
     formula: '(Доход × Маржа − Расходы) / Расходы × 100 %',
     about: 'Окупились ли расходы на маркетинг с учётом маржи. Больше 0 % — кампания приносит прибыль.',
     compute: v => {
@@ -155,7 +167,7 @@ export const METRICS = [
   {
     id: 'roas', name: 'ROAS', full: 'Возврат рекламных расходов', group: 'roi', unit: '%',
     aliases: ['роас', 'return on ad spend'],
-    inputs: [I('income', 'Доход с рекламы', '₽'), I('spend', 'Расход на рекламу', '₽'), I('margin', 'Маржинальность', '%', 'необязательно — для точки безубыточности')],
+    inputs: [I('income', 'Доход с рекламы', MONEY), I('spend', 'Расход на рекламу', MONEY), I('margin', 'Маржинальность', '%', 'необязательно — для точки безубыточности')],
     formula: 'Доход / Расход × 100 %',
     about: 'Сколько выручки принёс каждый рубль рекламы. В отличие от ROMI не учитывает себестоимость.',
     compute: v => pct(v.income, v.spend),
@@ -168,7 +180,7 @@ export const METRICS = [
   {
     id: 'drr', name: 'ДРР', full: 'Доля рекламных расходов (ACoS)', group: 'roi', unit: '%',
     aliases: ['drr', 'acos', 'доля рекламных расходов'],
-    inputs: [I('spend', 'Расход на рекламу', '₽'), I('income', 'Доход с рекламы', '₽'), I('margin', 'Маржинальность', '%', 'необязательно — для оценки')],
+    inputs: [I('spend', 'Расход на рекламу', MONEY), I('income', 'Доход с рекламы', MONEY), I('margin', 'Маржинальность', '%', 'необязательно — для оценки')],
     formula: 'Расход / Доход × 100 %',
     about: 'Какая часть выручки уходит на рекламу. Популярна на маркетплейсах.',
     compute: v => pct(v.spend, v.income),
@@ -178,17 +190,17 @@ export const METRICS = [
     },
   },
   {
-    id: 'breakeven-cpa', name: 'Допустимый CPA', full: 'Точка безубыточности по цене заказа', group: 'roi', unit: '₽',
+    id: 'breakeven-cpa', name: 'Допустимый CPA', full: 'Точка безубыточности по цене заказа', group: 'roi', unit: MONEY,
     aliases: ['break-even cpa', 'максимальный cpa', 'безубыточность'],
-    inputs: [I('aov', 'Средний чек', '₽'), I('margin', 'Маржинальность', '%')],
+    inputs: [I('aov', 'Средний чек', MONEY), I('margin', 'Маржинальность', '%')],
     formula: 'Средний чек × Маржа',
     about: 'Максимальная цена привлечения заказа, при которой реклама не уходит в минус.',
     compute: v => (has(v.aov, v.margin) ? v.aov * v.margin / 100 : null),
   },
   {
-    id: 'gross-profit', name: 'Маржинальная прибыль', full: 'Маржинальная прибыль', group: 'roi', unit: '₽',
+    id: 'gross-profit', name: 'Маржинальная прибыль', full: 'Маржинальная прибыль', group: 'roi', unit: MONEY,
     aliases: ['маржа', 'gross profit', 'валовая прибыль'],
-    inputs: [I('revenue', 'Выручка', '₽'), I('variable', 'Переменные затраты', '₽')],
+    inputs: [I('revenue', 'Выручка', MONEY), I('variable', 'Переменные затраты', MONEY)],
     formula: 'Выручка − Переменные затраты',
     about: 'Сколько остаётся после себестоимости и переменных расходов на покрытие постоянных затрат.',
     compute: v => (has(v.revenue, v.variable) ? v.revenue - v.variable : null),
@@ -196,17 +208,17 @@ export const METRICS = [
 
   /* ---------- Клиенты и юнит-экономика ---------- */
   {
-    id: 'cac', name: 'CAC', full: 'Стоимость привлечения клиента', group: 'unit', unit: '₽',
+    id: 'cac', name: 'CAC', full: 'Стоимость привлечения клиента', group: 'unit', unit: MONEY,
     aliases: ['сак', 'customer acquisition cost', 'стоимость привлечения'],
-    inputs: [I('cost', 'Расходы на маркетинг и продажи', '₽'), I('customers', 'Новые клиенты', 'шт')],
+    inputs: [I('cost', 'Расходы на маркетинг и продажи', MONEY), I('customers', 'Новые клиенты', 'шт')],
     formula: 'Расходы / Новые клиенты',
     about: 'Во сколько обходится один новый платящий клиент с учётом всех расходов на привлечение.',
     compute: v => div(v.cost, v.customers),
   },
   {
-    id: 'ltv', name: 'LTV', full: 'Пожизненная ценность клиента', group: 'unit', unit: '₽',
+    id: 'ltv', name: 'LTV', full: 'Пожизненная ценность клиента', group: 'unit', unit: MONEY,
     aliases: ['cltv', 'lifetime value', 'пожизненная ценность'],
-    inputs: [I('aov', 'Средний чек', '₽'), I('frequency', 'Покупок в месяц', 'шт'), I('lifetime', 'Срок жизни клиента', 'мес'), I('margin', 'Маржинальность', '%', 'по умолчанию 100 %')],
+    inputs: [I('aov', 'Средний чек', MONEY), I('frequency', 'Покупок в месяц', 'шт'), I('lifetime', 'Срок жизни клиента', 'мес'), I('margin', 'Маржинальность', '%', 'по умолчанию 100 %')],
     formula: 'Чек × Покупок в месяц × Срок жизни × Маржа',
     about: 'Сколько маржинальной прибыли приносит клиент за всё время отношений с компанией.',
     compute: v => {
@@ -217,7 +229,7 @@ export const METRICS = [
   {
     id: 'ltv-cac', name: 'LTV / CAC', full: 'Отношение ценности клиента к цене привлечения', group: 'unit', unit: 'x',
     aliases: ['ltv cac', 'юнит-экономика'],
-    inputs: [I('ltv', 'LTV', '₽'), I('cac', 'CAC', '₽')],
+    inputs: [I('ltv', 'LTV', MONEY), I('cac', 'CAC', MONEY)],
     formula: 'LTV / CAC',
     about: 'Во сколько раз клиент приносит больше, чем стоит его привлечение.',
     compute: v => div(v.ltv, v.cac),
@@ -230,24 +242,24 @@ export const METRICS = [
   {
     id: 'cac-payback', name: 'Окупаемость CAC', full: 'Срок окупаемости привлечения', group: 'unit', unit: 'мес',
     aliases: ['payback', 'срок окупаемости'],
-    inputs: [I('cac', 'CAC', '₽'), I('monthly', 'Маржинальный доход с клиента в месяц', '₽')],
+    inputs: [I('cac', 'CAC', MONEY), I('monthly', 'Маржинальный доход с клиента в месяц', MONEY)],
     formula: 'CAC / Доход с клиента в месяц',
     about: 'За сколько месяцев клиент возвращает деньги, потраченные на его привлечение.',
     compute: v => div(v.cac, v.monthly),
     assess: r => (r <= 12 ? { level: r <= 6 ? 'good' : 'ok', text: r <= 6 ? 'Быстрая окупаемость.' : 'Приемлемо: окупается в течение года.' } : { level: 'bad', text: 'Долгая окупаемость: нужен большой запас денег на рост.' }),
   },
   {
-    id: 'arpu', name: 'ARPU', full: 'Средний доход на пользователя', group: 'unit', unit: '₽',
+    id: 'arpu', name: 'ARPU', full: 'Средний доход на пользователя', group: 'unit', unit: MONEY,
     aliases: ['арпу', 'average revenue per user'],
-    inputs: [I('revenue', 'Выручка', '₽'), I('users', 'Все пользователи', 'шт')],
+    inputs: [I('revenue', 'Выручка', MONEY), I('users', 'Все пользователи', 'шт')],
     formula: 'Выручка / Пользователи',
     about: 'Средняя выручка на одного пользователя, включая неплатящих.',
     compute: v => div(v.revenue, v.users),
   },
   {
-    id: 'arppu', name: 'ARPPU', full: 'Средний доход на платящего пользователя', group: 'unit', unit: '₽',
+    id: 'arppu', name: 'ARPPU', full: 'Средний доход на платящего пользователя', group: 'unit', unit: MONEY,
     aliases: ['арппу', 'average revenue per paying user'],
-    inputs: [I('revenue', 'Выручка', '₽'), I('paying', 'Платящие пользователи', 'шт')],
+    inputs: [I('revenue', 'Выручка', MONEY), I('paying', 'Платящие пользователи', 'шт')],
     formula: 'Выручка / Платящие',
     about: 'Средняя выручка на одного платящего клиента.',
     compute: v => div(v.revenue, v.paying),
@@ -293,9 +305,9 @@ export const METRICS = [
     compute: v => pct(v.reactions, v.reach),
   },
   {
-    id: 'cpf', name: 'CPF', full: 'Цена подписчика', group: 'social', unit: '₽',
+    id: 'cpf', name: 'CPF', full: 'Цена подписчика', group: 'social', unit: MONEY,
     aliases: ['cost per follower', 'цена подписчика'],
-    inputs: [I('spend', 'Расход', '₽'), I('followers', 'Новые подписчики', 'шт')],
+    inputs: [I('spend', 'Расход', MONEY), I('followers', 'Новые подписчики', 'шт')],
     formula: 'Расход / Новые подписчики',
     about: 'Сколько стоит привлечение одного подписчика.',
     compute: v => div(v.spend, v.followers),
@@ -383,7 +395,7 @@ export function searchMetrics(query) {
 /* ---------- ввод и вывод чисел ---------- */
 export function parseNum(raw) {
   if (raw === null || raw === undefined) return null;
-  const s = String(raw).replace(/[\s ₽%]/g, '').replace(',', '.');
+  const s = String(raw).replace(/сум|[\s ₽$%]/gi, '').replace(',', '.');
   if (s === '' || s === '-' || s === '.') return null;
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
@@ -392,17 +404,21 @@ export function parseNum(raw) {
 export function fmt(n, unit = '') {
   if (n === null || n === undefined || !Number.isFinite(n)) return '—';
   const digits = Math.abs(n) >= 100 ? 0 : 2;
-  const s = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: digits }).format(n);
+  // Центы показываем парой цифр: $2,40, а не $2,4
+  const cents = unit === MONEY && currency === 'usd' && digits && !Number.isInteger(n) ? 2 : 0;
+  const s = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: cents, maximumFractionDigits: digits }).format(n);
   if (!unit) return s;
   if (unit === 'x') return `${s}×`;
+  if (unit === MONEY && currency === 'usd') return `${n < 0 ? '−' : ''}$${s.replace(/^[-−]/, '')}`;
+  if (unit === MONEY) return `${s} сум`;
   return `${s} ${unit}`;
 }
 
 /* ---------- калькулятор воронки ---------- */
 export const FUNNEL_INPUTS = [
-  I('budget', 'Бюджет', '₽'), I('cpm', 'CPM', '₽'), I('ctr', 'CTR', '%'),
+  I('budget', 'Бюджет', MONEY), I('cpm', 'CPM', MONEY), I('ctr', 'CTR', '%'),
   I('cr1', 'Конверсия в лид', '%'), I('cr2', 'Конверсия лида в продажу', '%'),
-  I('aov', 'Средний чек', '₽'), I('margin', 'Маржинальность', '%'),
+  I('aov', 'Средний чек', MONEY), I('margin', 'Маржинальность', '%'),
 ];
 export const FUNNEL_BENCHMARKS = { ctr: 1, cr1: 3, cr2: 20 };
 const STAGE_NAMES = { ctr: 'Кликабельность (CTR)', cr1: 'Конверсия в лид', cr2: 'Конверсия лида в продажу' };

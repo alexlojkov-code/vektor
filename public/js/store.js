@@ -1,4 +1,5 @@
 // Хранилище в localStorage: один JSON-объект под ключом pilot:v1, запись с задержкой 300 мс.
+// Удалённые чаты и задачи помечаются в deleted (id → время), чтобы синхронизация не вернула их с другого устройства.
 import { toast } from './ui.js';
 
 const KEY = 'pilot:v1';
@@ -9,7 +10,8 @@ const empty = () => ({
   brand: { name: '', product: '', audience: '', usp: '', competitors: '', tone: '', geo: '', budget: '' },
   chats: [],
   tasks: [],
-  settings: { theme: 'dark', lastDirection: 'general', tasksView: 'list' },
+  settings: { theme: 'dark', lastDirection: 'general', tasksView: 'list', currency: 'uzs' },
+  deleted: {},
 });
 
 function load() {
@@ -23,7 +25,7 @@ function load() {
       return { ...empty(), ...data, readOnly: true };
     }
     const base = empty();
-    return { ...base, ...data, brand: { ...base.brand, ...data.brand }, settings: { ...base.settings, ...data.settings } };
+    return { ...base, ...data, brand: { ...base.brand, ...data.brand }, settings: { ...base.settings, ...data.settings }, deleted: { ...data.deleted } };
   } catch {
     try { localStorage.setItem(`${KEY}:backup-${Date.now()}`, raw); } catch {}
     setTimeout(() => toast('Сохранённые данные повреждены: сделана резервная копия, начинаем с чистого листа', { type: 'error' }));
@@ -62,6 +64,38 @@ addEventListener('pagehide', flush);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
 export const onChange = fn => listeners.add(fn);
 
+/* ---------- Синхронизация: снимок для сервера и замена данных пришедшими ---------- */
+// Сообщение, которое ещё генерируется, на сервер не отправляем — уйдёт следующим снимком
+export function snapshot() {
+  const { brand, chats, tasks, settings, deleted } = state;
+  // Порядок полей как на сервере (api/sync.js): по строке JSON сравниваем снимки
+  return JSON.parse(JSON.stringify({
+    brand,
+    chats: chats.map(c => ({ ...c, messages: c.messages.filter(m => !m.pending) })),
+    tasks, settings, deleted,
+  }));
+}
+// Подменяет данные «на месте»: модули держат ссылку на state. Уведомляет подписчиков и пишет в localStorage.
+export function replaceData(data) {
+  const base = empty();
+  Object.assign(state, {
+    brand: { ...base.brand, ...data.brand },
+    settings: { ...base.settings, ...data.settings },
+    chats: data.chats || [],
+    tasks: data.tasks || [],
+    deleted: { ...data.deleted },
+  });
+  listeners.forEach(fn => fn({ remote: true }));
+  write();
+}
+// Выход из аккаунта: данные остаются в аккаунте, с устройства удаляются
+export function clearLocal() {
+  clearTimeout(timer);
+  timer = 0;
+  try { localStorage.removeItem(KEY); } catch {}
+}
+const markDeleted = id => { state.deleted[id] = now(); };
+
 export const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 export const now = () => new Date().toISOString();
 
@@ -81,6 +115,7 @@ export function touchChat(chat) {
 }
 export function deleteChat(id) {
   state.chats = state.chats.filter(c => c.id !== id);
+  markDeleted(id);
   save();
 }
 
@@ -101,10 +136,13 @@ export function removeTask(id) {
   const i = state.tasks.findIndex(t => t.id === id);
   if (i < 0) return null;
   const [task] = state.tasks.splice(i, 1);
+  markDeleted(task.id);
   save();
   return { task, index: i };
 }
 export function restoreTask({ task, index }) {
+  delete state.deleted[task.id];
+  task.updatedAt = now(); // свежее отметки об удалении, если она уже ушла на сервер
   state.tasks.splice(index, 0, task);
   save();
 }

@@ -92,20 +92,28 @@ Vektor/
 ├── PRD.md, SPEC.md, README.md
 ├── package.json, vercel.json, .env.example
 ├── scripts/dev.mjs              # локальный сервер: public/ + api/
+├── scripts/og-image.mjs, fonts/ # картинка превью и иконка (npm run build:og)
+├── src/scene3d.js               # 3D-объекты лендинга (npm run build:3d)
+├── tests/                       # формулы и валюта, слияние данных
 ├── api/
 │   ├── chat.js                  # POST /api/chat — поток ответа
 │   ├── ai/status.js             # GET /api/ai/status
+│   ├── account.js               # GET|POST /api/account — вход, регистрация, восстановление
+│   ├── sync.js                  # GET|PUT /api/sync — данные пользователя
 │   └── _lib/
 │       ├── config.js            # переменные окружения
+│       ├── db.js                # Upstash Redis (REST) или память
+│       ├── auth.js              # пароли, сессии, защита от перебора
 │       ├── server.js            # ответы, ошибки, проверки, лимит частоты
 │       ├── prompts.js           # базовый промпт и промпты направлений
 │       └── ai/provider.js, anthropic.js, mock.js, disabled.js
 └── public/
     ├── index.html               # лендинг
     ├── app.html                 # приложение
-    ├── css/tokens.css, base.css, landing.css, app.css
-    └── js/landing.js, app.js, store.js, router.js, chat.js, markdown.js,
-           tasks.js, calc.js, metrics.js, directions.js, ui.js
+    ├── og.png, apple-touch-icon.png, robots.txt, sitemap.xml
+    ├── css/tokens.css, base.css, landing.css, app.css, motion.css, liquid-glass.css
+    └── js/landing.js, app.js, store.js, chat.js, markdown.js, tasks.js, calc.js,
+           metrics.js, directions.js, ui.js, account.js, merge.js, motion.js, liquid-glass.js
 ```
 
 ## 4. Модель данных (localStorage)
@@ -123,7 +131,8 @@ interface Store {
   brand: BrandProfile;
   chats: Chat[];          // сортировка по updatedAt desc
   tasks: Task[];
-  settings: { theme: 'dark' | 'light' | 'system'; lastDirection: DirectionId };
+  settings: { theme: 'dark' | 'light' | 'system'; lastDirection: DirectionId; tasksView: 'list' | 'board'; currency: 'uzs' | 'usd' };
+  deleted: Record<string, string>;  // id удалённого чата/задачи → время удаления (для синхронизации, хранится 90 дней)
 }
 
 interface BrandProfile {
@@ -168,6 +177,8 @@ interface Task {
   updatedAt: string;
 }
 ```
+
+Рядом лежит `pilot:sync` — `{ rev, dirty, email }`: версия данных на сервере, с которой совпадает устройство, и есть ли неотправленные изменения.
 
 **Миграции:** при `version` новее известной — данные не трогаем, показываем предупреждение. Повреждённый JSON сохраняется в `pilot:v1:backup-<время>`, приложение стартует с пустым хранилищем.
 
@@ -216,6 +227,32 @@ interface Task {
 | `AI_TIMEOUT` | 504 | Нет ответа за `AI_TIMEOUT_MS` | AI не ответил вовремя |
 | `AI_REFUSED` | 422 (или событие `error`, если поток уже начат) | `stop_reason: "refusal"` даже после фолбэка | AI не может помочь с этим запросом. Переформулируйте его. |
 | `AI_UNAVAILABLE` | 502 | Прочие ошибки сети и API | Не удалось связаться с AI |
+
+### Аккаунты: `GET|POST /api/account`
+
+Хранилище — Upstash Redis через REST (`api/_lib/db.js`; переменные `KV_REST_API_URL`, `KV_REST_API_TOKEN` создаёт интеграция Vercel → Storage). Без них `GET` отвечает `{ "enabled": false }`, и кнопка входа скрыта. Локально — `DB_PROVIDER=memory`.
+
+- `GET` → `{ enabled, user: { email, createdAt } | null }`.
+- `POST { action }`: `register { email, password }` → `201 { user, recoveryCode }`; `login { email, password }`; `logout`; `reset { email, recoveryCode, password }` → новый `recoveryCode`, старые сессии гаснут; `delete { password }` — удаляет аккаунт и данные на сервере.
+- Пароль ≥ 8 символов, хэш scrypt (N=16384) с солью; код восстановления 16 символов без похожих букв (`XXXX-XXXX-XXXX-XXXX`), тоже хэшируется. Писем не отправляем — код показывается один раз.
+- Сессия: случайный токен 32 байта в cookie `vk_session` (`HttpOnly; Secure; SameSite=Lax`, 30 дней); в базе хранится только SHA-256 токена. Смена пароля повышает `sessionVersion` пользователя.
+- Перебор: не больше 10 попыток на почту и 30 с IP за 15 минут (`429 TOO_MANY`). Ошибки входа одинаковые для «нет такой почты» и «неверный пароль», время проверки выравнивается.
+
+| Ключ Redis | Значение |
+|---|---|
+| `user:email:<почта>` | id (создаётся с `NX` — защита от двойной регистрации) |
+| `user:<id>` | `{ id, email, password, recovery, sessionVersion, createdAt }` |
+| `sess:<sha256(токена)>` | `<id>:<sessionVersion>`, TTL 30 дней |
+| `data:<id>` | `{ rev, updatedAt, data: { brand, chats, tasks, settings, deleted } }` |
+| `rl:auth:ip:<ip>`, `rl:auth:email:<почта>` | счётчики попыток, TTL 15 минут |
+
+### Синхронизация: `GET|PUT /api/sync`
+
+- `GET` → `{ rev, updatedAt, data | null }`.
+- `PUT { baseRev, data }` → `{ rev, updatedAt }`, если на сервере всё ещё `baseRev` (проверка и запись — один Lua-скрипт `EVAL`). Иначе `409` с актуальной версией. Лимит документа 4 МБ (`413 TOO_LARGE`).
+- Клиент (`public/js/account.js`): после входа — `GET` и слияние с данными устройства, затем `PUT`. Изменения отправляются через 2 с после последней правки, при уходе со вкладки — сразу; при возврате на вкладку — `GET`. Пока AI пишет ответ, данные не подменяются (чат держит ссылку на сообщение), а сообщение в процессе генерации не отправляется.
+- Слияние (`public/js/merge.js`, тесты `tests/merge.test.mjs`): чаты и задачи — по `id`, побеждает свежий `updatedAt`; удалённое не возвращается, если не менялось после удаления. Профиль бренда и настройки — трёхсторонне относительно последней синхронизированной версии; пустой профиль нового устройства не затирает заполненный.
+- Выход удаляет данные с устройства (они остаются в аккаунте); при входе в другой аккаунт данные прошлого аккаунта на устройстве не смешиваются с новым.
 
 ### Вызов Claude
 
@@ -307,8 +344,8 @@ interface Metric {
   full: string;                  // 'Рентабельность маркетинговых инвестиций'
   aliases: string[];             // для поиска: ['ромі', 'окупаемость маркетинга']
   group: 'ads' | 'funnel' | 'roi' | 'unit' | 'social' | 'email' | 'loyalty';
-  inputs: { key: string; label: string; unit: '₽' | '%' | 'шт' | 'мес' | 'дн'; hint?: string }[];
-  unit: '₽' | '%' | 'x' | 'шт' | 'мес';
+  inputs: { key: string; label: string; unit: MONEY | '%' | 'шт' | 'мес' | 'дн'; hint?: string }[];
+  unit: MONEY | '%' | 'x' | 'шт' | 'мес';   // MONEY = 'money': подпись и формат зависят от валюты
   formula: string;               // текст для показа
   about: string;                 // одно-два предложения
   compute(v: Record<string, number>): number | null;   // null — недостаточно данных
@@ -317,6 +354,8 @@ interface Metric {
 ```
 
 **Правила ввода (CA-8):** пустое поле → результат «—» и подсказка, какое поле заполнить; деление на ноль → `null` и подсказка «Знаменатель не может быть 0»; отрицательные значения разрешены только в полях прибыли/дохода. Числа принимаются с пробелами и запятой (`1 200,5`). Вывод — `Intl.NumberFormat('ru-RU')`, до 2 знаков.
+
+**Валюта (CA-9):** денежные поля помечены `MONEY`. Переключатель «Сум / Доллар» в шапке каталога, воронки и метрик с деньгами; выбор — `settings.currency` (по умолчанию `uzs`). Формат: `1 500 000 сум`, `$1 235`, `$2,40` (центы двумя цифрами). Ввод принимает `сум`, `$`, `₽` и пробелы. Курс не пересчитываем: пользователь вводит свои числа. Пример воронки при первом открытии — в масштабе валюты и меняется вместе с ней, пока его не правили. AI получает расчёт с подписью валюты; в базовом промпте — правило: деньги в валюте пользователя, по умолчанию сумы.
 
 ### 7.2 Формулы
 
@@ -510,7 +549,14 @@ ROMI = прибыль / бюджет × 100 %;  ДРР = бюджет / выру
 - Заголовки ответа как в To do list: `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: DENY`, `Permissions-Policy`, плюс `Content-Security-Policy: default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data:`.
 - Сервер не логирует содержимое сообщений — только код ошибки и длительность.
 - Под полем ввода чата: «Не вводите персональные данные клиентов».
-- Ограничение частоты: 20 запросов к `/api/chat` в минуту на IP (скользящее окно в памяти экземпляра). Это мягкая защита; в v0.2 — лимит по аккаунту в базе.
+- Ограничение частоты: 20 запросов к `/api/chat` в минуту на IP (скользящее окно в памяти экземпляра). Это мягкая защита; следующий шаг — дневная квота по аккаунту и общий потолок в Redis.
+- Аккаунты: пароли и коды восстановления — только хэши scrypt; токен сессии — только в httpOnly-cookie, в базе — его SHA-256; защита от перебора — см. раздел 5. Изменяющие запросы `/api/account` и `/api/sync` проходят ту же проверку `x-pilot` и Origin.
+
+### Превью ссылки и SEO
+
+- `index.html` и `app.html`: `description`, `canonical`, Open Graph (`og:title`, `og:description`, `og:image` = `/og.png` 1200×630, `og:locale ru_RU`), `twitter:card = summary_large_image`, `apple-touch-icon.png` 180×180.
+- `public/robots.txt` (закрывает `/api/`) и `public/sitemap.xml`.
+- Картинки собирает `npm run build:og` (`scripts/og-image.mjs`: SVG → PNG через `@resvg/resvg-js`, шрифт Manrope из `scripts/fonts`, лицензия OFL).
 
 ## 12. Конфигурация
 
@@ -522,6 +568,9 @@ AI_MODEL=claude-opus-5-5
 AI_EFFORT=medium             # low | medium | high
 AI_MAX_TOKENS=64000
 AI_TIMEOUT_MS=120000
+KV_REST_API_URL=             # Upstash Redis (Vercel → Storage), включает аккаунты
+KV_REST_API_TOKEN=
+DB_PROVIDER=                 # memory — аккаунты в памяти для локальной разработки
 ```
 
 `vercel.json`: `outputDirectory: public`, `functions["api/chat.js"].maxDuration = 300` (длинные ответы), заголовки безопасности.
@@ -544,7 +593,12 @@ AI_TIMEOUT_MS=120000
 | 12 | Поиск «дрр» в каталоге метрик | Найдена метрика ДРР (ACoS) |
 | 13 | Ответ AI содержит `<script>` | Показан как текст, не исполняется |
 | 14 | Навигация только с клавиатуры | Все действия доступны, фокус виден |
-| 15 | `node --test` | Все тесты формул проходят |
+| 15 | `node --test` | Все тесты формул, валюты и слияния проходят |
+| 16 | Переключить валюту на «Доллар» в воронке | Подписи полей `$`, пример в масштабе долларов, KPI вида `$625`; после перезагрузки выбор сохранён |
+| 17 | Зарегистрироваться на устройстве с задачами | Показан код восстановления; задачи и профиль бренда появились на сервере |
+| 18 | Изменить данные на двух устройствах одновременно | Ни одно изменение не потеряно, удалённое не вернулось |
+| 19 | Выйти и войти снова | После выхода устройство пустое, после входа данные на месте |
+| 20 | Отправить ссылку на сайт в Telegram | Карточка с картинкой, заголовком и описанием |
 
 ## 14. Развёртывание
 
@@ -556,7 +610,8 @@ AI_TIMEOUT_MS=120000
 
 | Сейчас | Ограничение | Когда пересмотреть | На что заменить |
 |---|---|---|---|
-| `localStorage` | Нет синхронизации, лимит ~5 МБ, данные теряются при очистке браузера | Запрос пользователей на несколько устройств, > 500 чатов | Аккаунты + Neon Postgres (как в To do list), сохранение по `updatedAt` |
+| Один документ на пользователя в Redis | Весь документ отправляется при каждом изменении; лимит 4 МБ | > 1 МБ данных у заметной доли пользователей | Postgres: таблицы чатов и задач, синхронизация изменений по `updatedAt` |
+| Код восстановления вместо писем | Потерял пароль и код — доступ не вернуть | Жалобы на потерю доступа | Письма со ссылкой (Resend и т. п.), вход через Google |
 | Лимит частоты в памяти экземпляра | Не общий между экземплярами | Злоупотребления или платные тарифы | Лимиты по аккаунту в базе / Upstash Redis |
 | История диалога целиком в каждом запросе | Растёт стоимость длинных чатов | Средняя длина чата > 20 сообщений | Серверная компакция (beta `compact-2026-01-12`) или сжатие истории |
 | Одна модель с `effort: medium` | Простые запросы стоят как сложные | Расходы на AI > целевых | Замер качества на выборке реальных запросов и подбор `effort` по направлениям |

@@ -34,7 +34,7 @@ let seen = false;
 function update() {
   const v = Object.fromEntries(['income', 'margin', 'cost'].map(k => [k, parseNum(form.elements[k].value)]));
   const r = romi.compute(v);
-  const message = r === null ? 'Заполните доход и расходы' : `${romi.assess(r).text} Каждый рубль вернул ${fmt(1 + r / 100)} ₽.`;
+  const message = r === null ? 'Заполните доход и расходы' : `${romi.assess(r).text} Каждый вложенный сум вернул ${fmt(1 + r / 100)} сум.`;
   text.textContent = message;
   live.textContent = r === null ? message : `ROMI ${formatRomi(r)}. ${message}`;
   if (r === null) { value.textContent = '—'; value._value = undefined; return; }

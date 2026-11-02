@@ -1,11 +1,28 @@
 // Калькулятор метрик: каталог с поиском, экран метрики, калькулятор воронки, «Разобрать с AI».
 import { esc, icon } from './ui.js';
-import { GROUPS, METRICS, metricById, searchMetrics, parseNum, fmt, FUNNEL_INPUTS, FUNNEL_BENCHMARKS, computeFunnel } from './metrics.js';
+import { GROUPS, METRICS, metricById, searchMetrics, parseNum, fmt, FUNNEL_INPUTS, FUNNEL_BENCHMARKS, computeFunnel, MONEY, CURRENCIES, getCurrency, setCurrency, unitLabel } from './metrics.js';
+import { state, save } from './store.js';
 import { startChat } from './chat.js';
 
 const lastInputs = {}; // значения полей живут до перезагрузки страницы
 
 const fmtInput = n => (n === null || n === undefined ? '' : new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 4 }).format(n));
+
+/* ---------- Валюта: переключатель в шапке каждого экрана калькулятора ---------- */
+const currencySwitch = () => `<div class="segmented currency-switch" role="group" aria-label="Валюта">${
+  Object.entries(CURRENCIES).map(([code, c]) => `<button type="button" data-currency="${code}" aria-pressed="${code === getCurrency()}">${c.name}</button>`).join('')}</div>`;
+
+function bindCurrency(main, rerender) {
+  main.querySelector('.currency-switch').addEventListener('click', e => {
+    const code = e.target.closest('[data-currency]')?.dataset.currency;
+    if (!code || code === getCurrency()) return;
+    setCurrency(code);
+    state.settings.currency = code;
+    save();
+    rerender();
+    main.querySelector(`[data-currency="${code}"]`)?.focus();
+  });
+}
 
 /* ---------- Каталог ---------- */
 export function renderCalcCatalog(main, query) {
@@ -14,7 +31,7 @@ export function renderCalcCatalog(main, query) {
       <header class="page-head"><div>
         <h1>Калькулятор <span class="accent-word">метрик</span></h1>
         <p class="muted">${METRICS.length} метрик с формулами, ориентирами и разбором от AI.</p>
-      </div></header>
+      </div>${currencySwitch()}</header>
       <a class="card card-gradient card-interactive funnel-promo" href="#/calc/funnel">
         <div>${icon('funnel')}<h2>Калькулятор <span class="accent-word">воронки</span></h2>
         <p class="muted">Бюджет → показы → клики → лиды → продажи → выручка. Покажет ROMI, ДРР и узкое место.</p></div>
@@ -41,6 +58,7 @@ export function renderCalcCatalog(main, query) {
     history.replaceState(null, '', `#/calc${input.value ? `?q=${encodeURIComponent(input.value)}` : ''}`);
     draw();
   });
+  bindCurrency(main, () => renderCalcCatalog(main, { q: input.value }));
   draw();
 }
 
@@ -58,10 +76,10 @@ export function renderMetric(main, id) {
         <p class="subtle">${esc(group.name)}</p>
         <h1>${esc(m.name)} <span class="accent-word">${esc(m.full !== m.name ? m.full.toLowerCase() : '')}</span></h1>
         <p class="muted metric-about">${esc(m.about)}</p>
-      </div></header>
+      </div>${m.inputs.some(i => i.unit === MONEY) ? currencySwitch() : ''}</header>
       <div class="calc-layout">
         <form class="card calc-form" novalidate>
-          ${m.inputs.map(i => `<label class="field"><span>${esc(i.label)}${i.unit ? `, ${i.unit}` : ''}</span>
+          ${m.inputs.map(i => `<label class="field"><span>${esc(i.label)}${i.unit ? `, ${unitLabel(i.unit)}` : ''}</span>
             <input class="input" name="${i.key}" inputmode="decimal" autocomplete="off" value="${fmtInput(values[i.key])}">
             ${i.hint ? `<small>${esc(i.hint)}</small>` : ''}</label>`).join('')}
           <button type="reset" class="btn btn-ghost btn-sm">Очистить</button>
@@ -103,24 +121,32 @@ export function renderMetric(main, id) {
     const parts = m.inputs.filter(i => values[i.key] !== null).map(i => `${i.label.toLowerCase()} ${fmt(values[i.key], i.unit === 'шт' ? '' : i.unit)}`);
     startChat('research', `Разбери расчёт метрики «${m.name}» (${m.full}): ${parts.join(', ')} → ${m.name} ${fmt(current, m.unit)}.\nОбъясни, что это значит для бизнеса, назови вероятные причины и предложи 5 конкретных шагов для улучшения.`);
   });
+  if (m.inputs.some(i => i.unit === MONEY)) bindCurrency(main, () => renderMetric(main, id));
   update();
 }
 
 /* ---------- Калькулятор воронки ---------- */
-const FUNNEL_DEFAULTS = { budget: 100000, cpm: 200, ctr: 1, cr1: 5, cr2: 20, aov: 5000, margin: 50 };
+// Пример для первого открытия — в масштабе выбранной валюты
+const FUNNEL_DEFAULTS = {
+  uzs: { budget: 30000000, cpm: 15000, ctr: 1, cr1: 5, cr2: 20, aov: 350000, margin: 50 },
+  usd: { budget: 2500, cpm: 1.2, ctr: 1, cr1: 5, cr2: 20, aov: 30, margin: 50 },
+};
+const isDefaults = v => Object.values(FUNNEL_DEFAULTS).some(d => Object.keys(d).every(k => d[k] === v[k]));
 
 export function renderFunnel(main) {
-  const values = lastInputs.funnel ||= { ...FUNNEL_DEFAULTS };
+  // Если пользователь ничего не менял, пример переключается вместе с валютой
+  if (!lastInputs.funnel || isDefaults(lastInputs.funnel)) lastInputs.funnel = { ...FUNNEL_DEFAULTS[getCurrency()] };
+  const values = lastInputs.funnel;
   main.innerHTML = `
     <div class="page page-wide">
       <a class="back" href="#/calc">${icon('back')}<span>Все метрики</span></a>
       <header class="page-head"><div>
         <h1>Калькулятор <span class="accent-word">воронки</span></h1>
         <p class="muted">Сколько продаж и прибыли принесёт рекламный бюджет и где воронка теряет больше всего.</p>
-      </div></header>
+      </div>${currencySwitch()}</header>
       <div class="funnel-layout">
         <form class="card calc-form" novalidate>
-          ${FUNNEL_INPUTS.map(i => `<label class="field"><span>${esc(i.label)}, ${i.unit}</span>
+          ${FUNNEL_INPUTS.map(i => `<label class="field"><span>${esc(i.label)}, ${unitLabel(i.unit)}</span>
             <input class="input" name="${i.key}" inputmode="decimal" autocomplete="off" value="${fmtInput(values[i.key])}">
             ${FUNNEL_BENCHMARKS[i.key] ? `<small>Ориентир: ${fmt(FUNNEL_BENCHMARKS[i.key], '%')}</small>` : ''}</label>`).join('')}
         </form>
@@ -156,7 +182,7 @@ export function renderFunnel(main) {
       return `<li class="${weak ? 'weak' : ''}"><span class="bar" data-w="${w}"><b>${fmt(n)}</b></span>
         <span class="stage-name">${name}${key ? ` · ${fmt(values[key], '%')}` : ''}${weak ? ' · узкое место' : ''}</span></li>`;
     }).join('')}
-      <li class="revenue"><span class="bar" data-w="100"><b>${fmt(res.revenue, '₽')}</b></span><span class="stage-name">Выручка</span></li></ol>
+      <li class="revenue"><span class="bar" data-w="100"><b>${fmt(res.revenue, MONEY)}</b></span><span class="stage-name">Выручка</span></li></ol>
       ${res.bottleneck ? `<p class="bottleneck">${icon('sparkle')}<span><b>Узкое место — ${esc(res.bottleneck.name.toLowerCase())}</b>: ${fmt(res.bottleneck.value, '%')} при ориентире ${fmt(res.bottleneck.benchmark, '%')}. Улучшение этого этапа даст самый большой прирост продаж.</span></p>`
         : '<p class="subtle">Все этапы на уровне ориентиров или выше.</p>'}`;
     stages.querySelectorAll('.bar[data-w]').forEach(b => { b.style.width = `${b.dataset.w}%`; });
@@ -164,9 +190,9 @@ export function renderFunnel(main) {
     const drrLevel = res.drr === null ? '' : res.drr < values.margin ? 'good' : 'bad';
     kpis.innerHTML = [
       ['ROMI', (res.romi > 0 ? '+' : '') + fmt(res.romi, '%'), romiLevel],
-      ['Прибыль', fmt(res.profit, '₽'), res.profit >= 0 ? 'good' : 'bad'],
+      ['Прибыль', fmt(res.profit, MONEY), res.profit >= 0 ? 'good' : 'bad'],
       ['ДРР', fmt(res.drr, '%'), drrLevel],
-      ['CPC', fmt(res.cpc, '₽'), ''], ['CPL', fmt(res.cpl, '₽'), ''], ['CPA', fmt(res.cpa, '₽'), ''],
+      ['CPC', fmt(res.cpc, MONEY), ''], ['CPL', fmt(res.cpl, MONEY), ''], ['CPA', fmt(res.cpa, MONEY), ''],
     ].map(([k, v, l]) => `<div class="card kpi${l ? ` kpi-${l}` : ''}"><small>${k}</small><strong>${v}</strong></div>`).join('');
   };
   form.addEventListener('input', update);
@@ -175,10 +201,11 @@ export function renderFunnel(main) {
     if (!res) return;
     const v = values;
     startChat('research', `Разбери мою рекламную воронку.
-Вводные: бюджет ${fmt(v.budget, '₽')}, CPM ${fmt(v.cpm, '₽')}, CTR ${fmt(v.ctr, '%')}, конверсия в лид ${fmt(v.cr1, '%')}, конверсия лида в продажу ${fmt(v.cr2, '%')}, средний чек ${fmt(v.aov, '₽')}, маржинальность ${fmt(v.margin, '%')}.
-Результат: ${fmt(res.impressions)} показов → ${fmt(res.clicks)} кликов → ${fmt(res.leads)} лидов → ${fmt(res.sales)} продаж, выручка ${fmt(res.revenue, '₽')}, прибыль ${fmt(res.profit, '₽')}, ROMI ${fmt(res.romi, '%')}, ДРР ${fmt(res.drr, '%')}, CPA ${fmt(res.cpa, '₽')}.
+Вводные: бюджет ${fmt(v.budget, MONEY)}, CPM ${fmt(v.cpm, MONEY)}, CTR ${fmt(v.ctr, '%')}, конверсия в лид ${fmt(v.cr1, '%')}, конверсия лида в продажу ${fmt(v.cr2, '%')}, средний чек ${fmt(v.aov, MONEY)}, маржинальность ${fmt(v.margin, '%')}.
+Результат: ${fmt(res.impressions)} показов → ${fmt(res.clicks)} кликов → ${fmt(res.leads)} лидов → ${fmt(res.sales)} продаж, выручка ${fmt(res.revenue, MONEY)}, прибыль ${fmt(res.profit, MONEY)}, ROMI ${fmt(res.romi, '%')}, ДРР ${fmt(res.drr, '%')}, CPA ${fmt(res.cpa, MONEY)}.
 ${res.bottleneck ? `Узкое место по ориентирам: ${res.bottleneck.name.toLowerCase()} (${fmt(res.bottleneck.value, '%')} при ориентире ${fmt(res.bottleneck.benchmark, '%')}).` : 'Все этапы на уровне ориентиров.'}
 Объясни, что это значит, и предложи 5 конкретных шагов для роста ROMI.`);
   });
+  bindCurrency(main, () => renderFunnel(main));
   update();
 }

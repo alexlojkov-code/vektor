@@ -11,7 +11,7 @@ try { process.loadEnvFile(join(root, '.env')); } catch {}
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC = join(root, 'public');
 const API = join(root, 'api');
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png', '.woff2': 'font/woff2' };
+const TYPES = { '.webmanifest': 'application/manifest+json', '.txt': 'text/plain; charset=utf-8', '.xml': 'application/xml', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png', '.woff2': 'font/woff2' };
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
@@ -46,4 +46,6 @@ createServer(async (req, res) => {
   const provider = await getProvider();
   console.log(`Сервер: http://localhost:${PORT}`);
   console.log(provider.enabled ? `AI: включён (${provider.name}, модель ${provider.model})` : `AI: выключен (${provider.reason})`);
+  const { db } = await import('../api/_lib/db.js');
+  console.log(db.enabled ? `Аккаунты: включены (${db.name}${db.name === 'memory' ? ', данные живут до перезапуска' : ''})` : `Аккаунты: выключены (${db.reason})`);
 });

@@ -93,3 +93,19 @@ test('поиск по синонимам', () => {
   assert.ok(searchMetrics('ACoS').some(m => m.id === 'drr'));
   assert.ok(searchMetrics('окупаемость маркетинга').some(m => m.id === 'romi'));
 });
+
+test('валюта: подпись и формат денежных значений', async () => {
+  const { MONEY, setCurrency, unitLabel, fmt: f, parseNum: p } = await import('../public/js/metrics.js');
+  setCurrency('uzs');
+  assert.equal(unitLabel(MONEY), 'сум');
+  assert.equal(f(1500000, MONEY), '1 500 000 сум');
+  setCurrency('usd');
+  assert.equal(unitLabel(MONEY), '$');
+  assert.equal(f(1234.5, MONEY), '$1 235');
+  assert.equal(f(-20.25, MONEY), '−$20,25');
+  assert.equal(p('$2 500'), 2500);
+  assert.equal(p('30 000 000 сум'), 30000000);
+  setCurrency('xxx'); // неизвестная валюта игнорируется
+  assert.equal(unitLabel(MONEY), '$');
+  setCurrency('uzs');
+});

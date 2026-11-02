@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://vektor-ai-marketing.vercel.app/sitemap.xml
