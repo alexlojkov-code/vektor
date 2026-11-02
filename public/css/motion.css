@@ -64,9 +64,9 @@
 @keyframes orb-a { to { transform: translate(90px, -50px) scale(1.12); } }
 @keyframes orb-b { to { transform: translate(-80px, 60px) scale(.92); } }
 
-/* ---------- 3D-объекты (Three.js): слоты задают место, рисует общий холст .scene3d ---------- */
-.scene3d { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+/* ---------- 3D-объекты (Three.js): слоты задают место, кадр копируется в холст внутри слота ---------- */
 .obj3d { position: absolute; z-index: 0; pointer-events: none; aspect-ratio: 1; }
+.obj3d-canvas { display: block; width: 100%; height: 100%; }
 .obj-hero-l { width: 300px; left: 2%; top: 360px; }
 .obj-hero-r { width: 300px; right: 1%; top: 96px; }
 .obj-features { width: 300px; right: -20px; top: 0; }
@@ -96,10 +96,10 @@
 /* ---------- Появление блоков при прокрутке (класс .is-in ставит JS один раз) ---------- */
 @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
   [data-reveal] {
-    opacity: 0; transform: translateY(40px) scale(.98); filter: blur(6px);
-    transition: opacity 900ms var(--ease-out-strong), transform 900ms var(--ease-out-strong), filter 900ms var(--ease-out-strong);
+    opacity: 0; transform: translateY(40px) scale(.98);
+    transition: opacity 900ms var(--ease-out-strong), transform 900ms var(--ease-out-strong);
   }
-  [data-reveal].is-in { opacity: 1; transform: none; filter: none; }
+  [data-reveal].is-in { opacity: 1; transform: none; }
   [data-split] .line { display: block; overflow: hidden; padding-bottom: .08em; margin-bottom: -.08em; }
   [data-split] .line > span { display: inline-block; transform: translateY(110%); transition: transform 1000ms var(--ease-out-strong); }
   [data-split].is-in .line > span { transform: none; }

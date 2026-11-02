@@ -31,10 +31,10 @@ body { overflow-x: hidden; }
 .section-light .section-lead { color: #5B4A73; }
 
 /* Размытые «стеклянные» сферы вместо 3D-объектов референса */
-.orb { position: absolute; border-radius: 50%; filter: blur(60px); pointer-events: none; opacity: .55; }
-.orb-1 { width: 520px; height: 520px; left: -160px; top: 120px; background: radial-gradient(circle, #8B5EFF, transparent 65%); }
-.orb-2 { width: 620px; height: 620px; right: -220px; top: -120px; background: radial-gradient(circle, #6B3FD6, transparent 65%); opacity: .45; }
-.orb-3 { width: 560px; height: 560px; right: -160px; bottom: -200px; background: radial-gradient(circle, #8B5EFF, transparent 65%); opacity: .35; }
+.orb { position: absolute; border-radius: 50%; pointer-events: none; opacity: .55; }
+.orb-1 { width: 520px; height: 520px; left: -160px; top: 120px; background: radial-gradient(circle, rgba(139, 94, 255, .9), rgba(139, 94, 255, .35) 35%, transparent 70%); }
+.orb-2 { width: 620px; height: 620px; right: -220px; top: -120px; background: radial-gradient(circle, rgba(107, 63, 214, .9), rgba(107, 63, 214, .35) 35%, transparent 70%); opacity: .45; }
+.orb-3 { width: 560px; height: 560px; right: -160px; bottom: -200px; background: radial-gradient(circle, rgba(139, 94, 255, .9), rgba(139, 94, 255, .35) 35%, transparent 70%); opacity: .35; }
 
 /* ---------- Hero ---------- */
 .hero { padding: 168px 0 96px; }

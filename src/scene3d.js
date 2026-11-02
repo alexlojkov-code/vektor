@@ -1,5 +1,6 @@
-// 3D-объекты лендинга на Three.js. Один WebGL-холст на весь экран; каждый объект рисуется
-// в прямоугольник своего «слота» (<div data-obj>) через scissor — так не нужен холст на каждый объект.
+// 3D-объекты лендинга на Three.js. Один WebGL-рендерер вне страницы рисует объекты по очереди
+// и копирует кадр в маленький 2D-холст внутри «слота» (<div data-obj>). Холсты прокручиваются
+// вместе со страницей (без отставания), а видеокарта не перерисовывает экран целиком каждый кадр.
 // Сборка: npm run build:3d → public/js/scene3d.min.js
 import {
   WebGLRenderer, Scene, PerspectiveCamera, Group, Mesh, Vector3, Vector2, Quaternion, Color,
@@ -314,11 +315,7 @@ export function start() {
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.95;
   renderer.outputColorSpace = SRGBColorSpace;
-  renderer.autoClear = false;
-  const canvas = renderer.domElement;
-  canvas.className = 'scene3d';
-  canvas.setAttribute('aria-hidden', 'true');
-  document.body.appendChild(canvas);
+  const gl = renderer.domElement; // в документ не добавляем: только источник кадров
 
   const env = new PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
 
@@ -342,7 +339,11 @@ export function start() {
     scene.add(holder);
     const camera = new PerspectiveCamera(30, 1, 0.1, 50);
     camera.position.set(0, 0, (bounds.radius / Math.sin(MathUtils.degToRad(15))) * 1.08);
-    return { el, scene, camera, obj, holder, visible: false, shownAt: null, spin: +el.dataset.spin || 0.4 };
+    const canvas = document.createElement('canvas');
+    canvas.className = 'obj3d-canvas';
+    el.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+    return { el, scene, camera, obj, holder, canvas, ctx, visible: false, shownAt: null, spin: +el.dataset.spin || 0.4 };
   });
 
   const io = new IntersectionObserver(entries => {
@@ -355,12 +356,14 @@ export function start() {
   }, { rootMargin: '120px 0px' });
   items.forEach(it => io.observe(it.el));
 
-  let w = 0, h = 0;
+  // Буфер рендерера — под самый крупный слот, а не под весь экран
+  let dpr = 1, vw = 0;
   function resize() {
-    const dpr = Math.min(devicePixelRatio || 1, innerWidth < 760 ? 1.5 : 2);
-    w = innerWidth; h = innerHeight;
+    vw = innerWidth;
+    dpr = Math.min(devicePixelRatio || 1, vw < 760 ? 1.5 : 2);
+    const size = Math.max(1, ...items.map(it => Math.ceil(Math.max(it.el.offsetWidth, it.el.offsetHeight))));
     renderer.setPixelRatio(dpr);
-    renderer.setSize(w, h);
+    renderer.setSize(size, size, false);
   }
   resize();
 
@@ -379,16 +382,13 @@ export function start() {
     const t = reduce ? 0 : (now - t0) / 1000;
     mx += (tx - mx) * 0.06;
     my += (ty - my) * 0.06;
-    if (w !== innerWidth || h !== innerHeight) resize();
-
-    renderer.setScissorTest(false);
-    renderer.clear();
-    renderer.setScissorTest(true);
+    if (vw !== innerWidth) resize();
+    const h = innerHeight;
     let any = false;
     for (const it of items) {
       if (!it.visible) continue;
       const r = it.el.getBoundingClientRect();
-      if (r.width < 2 || r.bottom < 0 || r.top > h || r.right < 0 || r.left > w) continue;
+      if (r.width < 2 || r.bottom < 0 || r.top > h) continue;
       any = true;
       const since = reduce ? 10 : (now - it.shownAt) / 1000;
       const s = MathUtils.clamp(since / 1.3, 0, 1);
@@ -400,9 +400,14 @@ export function start() {
       it.holder.rotation.x = reduce ? 0 : -center * it.spin * 0.6 + my * 0.35;
       it.camera.aspect = r.width / r.height;
       it.camera.updateProjectionMatrix();
-      renderer.setViewport(r.left, h - r.bottom, r.width, r.height);
-      renderer.setScissor(r.left, h - r.bottom, r.width, r.height);
+      // Рисуем в левый нижний угол буфера и сразу копируем в холст слота
+      const pw = Math.round(r.width * dpr), ph = Math.round(r.height * dpr);
+      if (it.canvas.width !== pw || it.canvas.height !== ph) { it.canvas.width = pw; it.canvas.height = ph; }
+      if (pw > gl.width || ph > gl.height) resize();
+      renderer.setViewport(0, 0, pw / dpr, ph / dpr);
       renderer.render(it.scene, it.camera);
+      it.ctx.clearRect(0, 0, pw, ph);
+      it.ctx.drawImage(gl, 0, gl.height - ph, pw, ph, 0, 0, pw, ph);
     }
     // Крутим цикл, пока объект на экране; при reduce-motion — только по событиям
     if (any && !reduce && !document.hidden) kick();
