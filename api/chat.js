@@ -44,7 +44,9 @@ export default route(['POST'], async (req, res) => {
   const controller = new AbortController();
   res.on('close', () => { if (!res.writableEnded) controller.abort(); });
 
-  const events = provider.chat({ system, messages, direction: input.direction }, { signal: controller.signal });
+  // Модель — из списка сервера; чужое значение провайдер заменит моделью по умолчанию
+  const model = typeof input.model === 'string' ? input.model : undefined;
+  const events = provider.chat({ system, messages, direction: input.direction, model }, { signal: controller.signal });
   const write = obj => res.write(JSON.stringify(obj) + '\n');
   let started = false, answered = false;
 
@@ -57,7 +59,7 @@ export default route(['POST'], async (req, res) => {
         res.setHeader('Cache-Control', 'no-store');
         res.setHeader('X-Accel-Buffering', 'no');
         res.setHeader('X-AI-Remaining', String(quota.remaining ?? ''));
-        write({ type: 'start', model: provider.model, remaining: quota.remaining });
+        write({ type: 'start', model: provider.models?.some(m => m.id === model) ? model : provider.model, remaining: quota.remaining });
         started = true;
       }
       if (event.type === 'delta') answered = true;

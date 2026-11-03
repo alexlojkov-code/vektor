@@ -10,6 +10,7 @@ export default route(['GET'], async (req, res) => {
     enabled: provider.enabled,
     provider: provider.name,
     ...(provider.model && { model: provider.model }),
+    ...(provider.models && { models: provider.models }),
     ...(provider.reason && { reason: provider.reason }),
     ...(quota && { quota }),
   });

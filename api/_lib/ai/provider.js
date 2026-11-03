@@ -1,12 +1,13 @@
 // Общий интерфейс AI-провайдера.
 //
 // interface AIProvider {
-//   name: 'openai' | 'anthropic' | 'mock' | 'none';
+//   name: 'gemini' | 'openai' | 'anthropic' | 'mock' | 'none';
+//   models?: { id, label }[]; // на выбор пользователю
 //   enabled: boolean;
 //   model?: string;
 //   reason?: string;          // почему выключен
 //   // Асинхронный генератор: { type: 'delta', text } … { type: 'done', stopReason }
-//   chat(input: { system, messages, direction }, opts: { signal }): AsyncGenerator<ChatEvent>;
+//   chat(input: { system, messages, direction, model? }, opts: { signal }): AsyncGenerator<ChatEvent>;
 // }
 
 import { config } from '../config.js';
@@ -28,8 +29,8 @@ export const getProvider = () => (_provider ||= createProvider());
 async function createProvider() {
   if (config.aiProvider === 'mock') return createMockProvider();
   if (config.aiProvider === 'none') return createDisabledProvider('выключен в AI_PROVIDER');
-  if (config.aiProvider === 'openai') {
-    if (!config.openaiKey) return createDisabledProvider('ключ не задан');
+  if (config.aiProvider === 'gemini' || config.aiProvider === 'openai') {
+    if (!config.compatKey) return createDisabledProvider('ключ не задан');
     const { createOpenAIProvider } = await import('./openai.js');
     return createOpenAIProvider(config);
   }

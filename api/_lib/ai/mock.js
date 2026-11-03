@@ -12,7 +12,7 @@ const TITLES = {
 
 function answer(direction, question) {
   const topic = question.replace(/\s+/g, ' ').trim().slice(0, 90);
-  return `> **Демо-режим.** Это шаблонный ответ без обращения к AI. Чтобы получать настоящие ответы, добавьте ключ AI (\`OPENAI_API_KEY\`) на сервере.
+  return `> **Демо-режим.** Это шаблонный ответ без обращения к AI. Чтобы получать настоящие ответы, добавьте ключ AI (\`GEMINI_API_KEY\`) на сервере.
 
 ## ${TITLES[direction] || TITLES.general}
 

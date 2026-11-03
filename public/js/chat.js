@@ -29,6 +29,20 @@ async function renderBanner(el) {
   }
 }
 
+/* ---------- Выбор модели: список приходит с сервера, выбор хранится в настройках (синхронизируется) ---------- */
+async function renderModelPicker(slot) {
+  const s = await aiStatus();
+  if (!slot.isConnected || !s.enabled || !s.models || s.models.length < 2) return;
+  const current = s.models.some(m => m.id === state.settings.aiModel) ? state.settings.aiModel : s.models[0].id;
+  slot.innerHTML = `<label class="sr-only" for="chat-model">Модель AI</label>
+    <select id="chat-model" class="chat-dir chat-model">${s.models.map(m => `<option value="${esc(m.id)}"${m.id === current ? ' selected' : ''}>${esc(m.label)}</option>`).join('')}</select>`;
+  slot.querySelector('select').addEventListener('change', e => {
+    state.settings.aiModel = e.target.value;
+    save();
+    toast(`Модель: ${e.target.selectedOptions[0].textContent}`);
+  });
+}
+
 /* ---------- Активные генерации живут вне экрана: можно уйти и вернуться ---------- */
 const active = new Map(); // chatId → { controller, message }
 let mounted = null;       // { chat, root } — открытый сейчас чат
@@ -62,7 +76,7 @@ async function generate(chat) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-pilot': '1' },
-      body: JSON.stringify({ direction: chat.direction, brand: state.brand, messages: history }),
+      body: JSON.stringify({ direction: chat.direction, brand: state.brand, messages: history, model: state.settings.aiModel }),
       signal: controller.signal,
     });
     if (!res.ok || !res.body) {
@@ -261,7 +275,10 @@ export function renderChat(main, chat) {
         <div class="chat-head-text">
           <h1 class="chat-title">${esc(chat.title)}</h1>
           <label class="sr-only" for="chat-dir">Направление</label>
-          <select id="chat-dir" class="chat-dir">${DIRECTIONS.map(x => `<option value="${x.id}"${x.id === d.id ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
+          <div class="chat-selects">
+            <select id="chat-dir" class="chat-dir">${DIRECTIONS.map(x => `<option value="${x.id}"${x.id === d.id ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
+            <span data-model-slot></span>
+          </div>
         </div>
         <button class="btn btn-icon" data-rename title="Переименовать" aria-label="Переименовать">${icon('edit')}</button>
         <button class="btn btn-icon" data-delete title="Удалить чат" aria-label="Удалить чат">${icon('trash')}</button>
@@ -292,6 +309,7 @@ export function renderChat(main, chat) {
     touchChat(chat);
     toast(`Направление: ${nd.name}`);
   });
+  renderModelPicker(main.querySelector('[data-model-slot]'));
   main.querySelector('[data-rename]').addEventListener('click', () => renameChat(chat));
   main.querySelector('[data-delete]').addEventListener('click', async () => {
     if (!(await confirmDialog('Удалить чат?', `«${chat.title}» и все сообщения будут удалены.`))) return;

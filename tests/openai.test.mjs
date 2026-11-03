@@ -1,4 +1,5 @@
-// Провайдер OpenAI на подставном сервере: поток, перебор моделей, ошибки ключа и баланса. Плюс дневные лимиты.
+// OpenAI-совместимый провайдер (Gemini, OpenAI) на подставном сервере: поток, выбор и перебор моделей,
+// ошибки ключа и баланса. Плюс дневные лимиты.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -15,11 +16,14 @@ const server = createServer((req, res) => {
   req.on('data', c => { raw += c; });
   req.on('end', () => {
     const body = JSON.parse(raw);
-    seen.push({ model: body.model, effort: body.reasoning_effort, auth: req.headers.authorization, system: body.messages[0] });
+    seen.push({ model: body.model, effort: body.reasoning_effort, auth: req.headers.authorization, system: body.messages[0], maxTokens: body.max_tokens, maxCompletion: body.max_completion_tokens });
     const fail = (status, code, message = code) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: { code, message } })); };
     if (body.model === 'busy') return fail(429, 'rate_limit_exceeded');
     if (body.model === 'missing') return fail(404, 'model_not_found');
     if (body.model === 'badkey') return fail(401, 'invalid_api_key');
+    // Gemini: неверный ключ — 400 и ошибка массивом
+    if (body.model === 'gemini-badkey') { res.writeHead(400, { 'content-type': 'application/json' }); return res.end(JSON.stringify([{ error: { code: 400, message: 'API key not valid. Please pass a valid API key.', status: 'INVALID_ARGUMENT' } }])); }
+    if (body.model === 'gemini-free0') return fail(429, 'RESOURCE_EXHAUSTED', 'Quota exceeded for metric generate_content_free_tier_requests, limit: 0');
     if (body.model === 'broke') return fail(429, 'insufficient_quota', 'You exceeded your current quota');
     if (body.model === 'gpt-5-noeffort' && body.reasoning_effort) return fail(400, 'unsupported_parameter', 'Unsupported parameter: reasoning_effort');
     res.writeHead(200, { 'content-type': 'text/event-stream' });
@@ -35,13 +39,15 @@ let base;
 before(() => new Promise(r => server.listen(0, '127.0.0.1', () => { base = `http://127.0.0.1:${server.address().port}`; r(); })));
 after(() => server.close());
 
-const provider = (aiModel, aiFallbackModels = []) => createOpenAIProvider({
-  openaiKey: 'test-key', openaiBaseUrl: base, aiModel, aiFallbackModels,
-  aiMaxTokens: 1000, aiTimeoutMs: 5000, aiEffort: 'low',
+const provider = (aiModel, fallbacks = [], extra = {}) => createOpenAIProvider({
+  aiProvider: 'openai', compatKey: 'test-key', compatBaseUrl: base, tokenParam: 'max_completion_tokens',
+  aiModel, aiModels: [aiModel, ...fallbacks].map(id => ({ id, label: id })),
+  aiMaxTokens: 1000, aiTimeoutMs: 5000, aiEffort: 'low', ...extra,
 });
-async function run(p) {
+const gemini = (models, extra) => provider(models[0], models.slice(1), { aiProvider: 'gemini', tokenParam: 'max_tokens', ...extra });
+async function run(p, model) {
   let text = '', done = null;
-  for await (const ev of p.chat({ system: 'Ты — Вектор', messages: [{ role: 'user', content: 'Привет' }] }, { signal: new AbortController().signal })) {
+  for await (const ev of p.chat({ system: 'Ты — Вектор', messages: [{ role: 'user', content: 'Привет' }], model }, { signal: new AbortController().signal })) {
     if (ev.type === 'delta') text += ev.text;
     if (ev.type === 'done') done = ev.stopReason;
   }
@@ -93,4 +99,24 @@ test('дневные лимиты: гость, общий потолок, воз
   assert.equal(third.code, 'AI_LIMIT');
   assert.equal((await takeQuota(req('2.2.2.2'))).ok, true); // другой гость — свой лимит
   assert.equal((await takeQuota(req('3.3.3.3'))).code, 'AI_LIMIT_TOTAL'); // общий потолок 3 исчерпан
+});
+
+test('Gemini: выбранная пользователем модель идёт первой, лимит ответа — max_tokens', async () => {
+  seen.length = 0;
+  const p = gemini(['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite']);
+  assert.equal((await run(p, 'gemini-3.6-flash')).text, 'Привет, маркетолог!');
+  assert.equal(seen[0].model, 'gemini-3.6-flash');
+  assert.equal(seen[0].maxTokens, 1000);
+  assert.equal(seen[0].maxCompletion, undefined);
+  assert.equal(seen[0].effort, 'low');
+  seen.length = 0;
+  await run(p, 'gpt-hack'); // модели нет в списке — берётся модель по умолчанию
+  assert.equal(seen[0].model, 'gemini-3.8-flash');
+});
+
+test('Gemini: неверный ключ (ошибка массивом) — AI_AUTH; модель без бесплатного лимита пропускается', async () => {
+  await assert.rejects(run(gemini(['gemini-badkey', 'gemini-3.6-flash'])), { code: 'AI_AUTH' });
+  seen.length = 0;
+  assert.equal((await run(gemini(['gemini-free0', 'gemini-3.6-flash']))).text, 'Привет, маркетолог!');
+  assert.deepEqual(seen.map(x => x.model), ['gemini-free0', 'gemini-3.6-flash']);
 });

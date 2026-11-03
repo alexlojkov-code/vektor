@@ -191,7 +191,7 @@ interface Task {
 ### `GET /api/ai/status`
 
 ```json
-{ "enabled": true, "provider": "openai", "model": "gpt-5.4-mini", "quota": { "limit": 15, "used": 3, "remaining": 12, "guest": true } }
+{ "enabled": true, "provider": "gemini", "model": "gemini-3.8-flash", "models": [{ "id": "gemini-3.8-flash", "label": "Gemini 3.8 Flash — точнее" }, …], "quota": { "limit": 15, "used": 3, "remaining": 12, "guest": true } }
 { "enabled": false, "provider": "none", "reason": "ключ не задан" }
 ```
 
@@ -261,15 +261,17 @@ interface Task {
 
 ### AI-провайдер и дневные лимиты
 
-Ключ сервиса — только в переменной окружения (`OPENAI_API_KEY` или `ANTHROPIC_API_KEY`); провайдер выбирается по заданному ключу или `AI_PROVIDER`. Схема как в Eatlas.
+Ключ сервиса — только в переменной окружения (`GEMINI_API_KEY`, `OPENAI_API_KEY` или `ANTHROPIC_API_KEY`); провайдер выбирается по заданному ключу (в этом порядке) или `AI_PROVIDER`. Схема как в Eatlas.
 
-**OpenAI** (`api/_lib/ai/openai.js`, без SDK): `POST {OPENAI_BASE_URL}/chat/completions` с `stream: true`, `stream_options.include_usage`, `max_completion_tokens` (по умолчанию 16 000), системный промпт — сообщением `system`; для моделей `gpt-5*`/`o*` — `reasoning_effort` из `AI_EFFORT` (по умолчанию `low`; если сервис его не знает — повтор без параметра). Ответ SSE переводится в те же события `delta`/`done`.
+**Модели на выбор** (`config.aiModels`, `GET /api/ai/status` → `models: [{ id, label }]`): Gemini 3.8 Flash (по умолчанию), 3.6 Flash, 3.5 Flash-Lite. Пользователь выбирает модель в шапке чата (`settings.aiModel`, синхронизируется), клиент передаёт `model` в `POST /api/chat`; модель не из списка заменяется моделью по умолчанию. Остальные модели списка — запасные.
 
-| Ответ OpenAI | Действие |
+**Gemini и OpenAI** (`api/_lib/ai/openai.js`, без SDK): `POST {адрес}/chat/completions` — для Gemini `https://generativelanguage.googleapis.com/v1beta/openai` (`GEMINI_BASE_URL`), для OpenAI `https://api.openai.com/v1` (`OPENAI_BASE_URL`); `stream: true`, `stream_options.include_usage`, лимит ответа 16 000 (`max_tokens` у Gemini, `max_completion_tokens` у OpenAI), системный промпт — сообщением `system`; для моделей `gemini-3+`, `gpt-5*`, `o*` — `reasoning_effort` из `AI_EFFORT` (по умолчанию `low`; если сервис его не знает — повтор без параметра). Ответ SSE переводится в те же события `delta`/`done`.
+
+| Ответ сервиса | Действие |
 |---|---|
 | 429, 5xx, обрыв сети, нет первого кусочка ответа за 20 с | Следующая модель из `AI_MODEL` + `AI_FALLBACK_MODELS`; занятая уходит в конец списка на 3 мин |
-| 404 / `model_not_found` | Следующая модель; эта откладывается на час |
-| 401 / 403 | `AI_AUTH` 502 «Ошибка настройки AI на сервере» |
+| 404 / `model_not_found`, у Google — исчерпан дневной лимит модели или «limit: 0» | Следующая модель; эта откладывается на час |
+| 401 / 403, у Google — 400 «API key not valid» (ошибка может прийти массивом) | `AI_AUTH` 502 «Ошибка настройки AI на сервере» |
 | 429 `insufficient_quota` | `AI_QUOTA` 502 «На балансе AI-сервиса закончились средства» |
 | `finish_reason: content_filter` или `refusal` | `AI_REFUSED` 422 |
 | Пауза в потоке больше 60 с | `AI_TIMEOUT` 504 |
@@ -591,12 +593,13 @@ ROMI = прибыль / бюджет × 100 %;  ДРР = бюджет / выру
 
 `.env.example`:
 ```
-AI_PROVIDER=                 # openai | anthropic | mock | none; пусто — по заданному ключу
-OPENAI_API_KEY=              # на Vercel: vercel env add OPENAI_API_KEY production --sensitive
+AI_PROVIDER=                 # gemini | openai | anthropic | mock | none; пусто — по заданному ключу
+GEMINI_API_KEY=              # на Vercel: vercel env add GEMINI_API_KEY production --sensitive
+OPENAI_API_KEY=
 OPENAI_BASE_URL=https://api.openai.com/v1
 ANTHROPIC_API_KEY=
-AI_MODEL=                    # по умолчанию gpt-5.4-mini (OpenAI) или claude-opus-5-5
-AI_FALLBACK_MODELS=          # по умолчанию gpt-5.4-nano,gpt-5.4
+AI_MODEL=                    # по умолчанию gemini-3.8-flash (Gemini), gpt-5.4-mini (OpenAI), claude-opus-5-5
+AI_FALLBACK_MODELS=          # остальные модели на выбор: gemini-3.6-flash,gemini-3.5-flash-lite
 AI_EFFORT=                   # low | medium | high; по умолчанию low (OpenAI), medium (Anthropic)
 AI_MAX_TOKENS=               # по умолчанию 16000 (OpenAI), 64000 (Anthropic)
 AI_TIMEOUT_MS=120000
@@ -628,7 +631,7 @@ DB_PROVIDER=                 # memory — аккаунты в памяти дл�
 | 12 | Поиск «дрр» в каталоге метрик | Найдена метрика ДРР (ACoS) |
 | 13 | Ответ AI содержит `<script>` | Показан как текст, не исполняется |
 | 14 | Навигация только с клавиатуры | Все действия доступны, фокус виден |
-| 15 | `node --test` | Все тесты формул, валюты, слияния, провайдера OpenAI и лимитов проходят |
+| 15 | `node --test` | Все тесты формул, валюты, слияния, провайдера Gemini/OpenAI и лимитов проходят |
 | 16 | Переключить валюту на «Доллар» в воронке | Подписи полей `$`, пример в масштабе долларов, KPI вида `$625`; после перезагрузки выбор сохранён |
 | 17 | Зарегистрироваться на устройстве с задачами | Показан код восстановления; задачи и профиль бренда появились на сервере |
 | 18 | Изменить данные на двух устройствах одновременно | Ни одно изменение не потеряно, удалённое не вернулось |
