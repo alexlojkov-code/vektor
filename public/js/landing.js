@@ -2,6 +2,7 @@ import { DIRECTIONS } from './directions.js';
 import { metricById, parseNum, fmt } from './metrics.js';
 import { esc } from './ui.js';
 import { initMotion, tweenNumber } from './motion.js';
+import './pwa.js';
 
 // Сетка направлений
 const grid = document.getElementById('dir-grid');

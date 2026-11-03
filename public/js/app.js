@@ -7,6 +7,7 @@ import { renderTasks, taskRow, bindTaskRows, openTaskEditor } from './tasks.js';
 import { renderCalcCatalog, renderMetric, renderFunnel } from './calc.js';
 import { setCurrency } from './metrics.js';
 import { initAccount } from './account.js';
+import { canInstall, install, onInstallChange, installHintDismissed, dismissInstallHint } from './pwa.js';
 
 const main = document.getElementById('main');
 const NAV = [
@@ -30,6 +31,20 @@ document.getElementById('theme-toggle').addEventListener('click', () => {
   save();
   applyTheme();
 });
+
+/* ---------- Установка приложения (PWA) ---------- */
+const installBtn = document.getElementById('install-btn');
+installBtn.innerHTML = `${icon('download')}<span>Установить приложение</span>`;
+installBtn.addEventListener('click', install);
+const narrowMQ = matchMedia('(max-width: 1023px)');
+// Кнопка — в боковой панели; на телефоне ещё и плашка на экране «Сегодня», пока её не скрыли
+function updateInstallUI() {
+  installBtn.hidden = !canInstall();
+  const card = document.getElementById('install-card');
+  if (card) card.hidden = !canInstall() || !narrowMQ.matches || installHintDismissed();
+}
+onInstallChange(updateInstallUI);
+narrowMQ.addEventListener('change', updateInstallUI);
 
 /* ---------- Боковая панель ---------- */
 const sidebar = document.getElementById('sidebar');
@@ -143,6 +158,16 @@ function renderToday() {
         <span class="btn btn-dark">Заполнить</span>
       </a>`}
 
+      <section class="card install-card" id="install-card" hidden>
+        <img src="icons/icon-192.png" alt="" width="48" height="48">
+        <div class="install-text"><h2>Установите <span class="accent-word">Вектор</span></h2>
+          <p class="muted">Иконка на главном экране, запуск на весь экран и работа без интернета.</p></div>
+        <div class="install-actions">
+          <button class="btn btn-primary btn-sm" type="button" data-install>Установить</button>
+          <button class="btn btn-icon" type="button" data-dismiss aria-label="Скрыть подсказку">${icon('close')}</button>
+        </div>
+      </section>
+
       <div class="today-grid">
         <section class="card">
           <div class="card-head"><h2>Задачи на сегодня</h2><a href="#/tasks?due=today" class="subtle">Все задачи · ${open}</a></div>
@@ -179,6 +204,10 @@ function renderToday() {
         </a>
       </section>
     </div>`;
+  const installCard = document.getElementById('install-card');
+  installCard.querySelector('[data-install]').addEventListener('click', install);
+  installCard.querySelector('[data-dismiss]').addEventListener('click', () => { dismissInstallHint(); updateInstallUI(); });
+  updateInstallUI();
   const list = document.getElementById('today-tasks');
   if (list) bindTaskRows(list, renderToday);
   document.getElementById('today-add')?.addEventListener('click', () => openTaskEditor(null, renderToday, { dueDate: todayISO() }));
@@ -229,6 +258,7 @@ function renderBrand() {
 /* ---------- Старт ---------- */
 setCurrency(state.settings.currency);
 applyTheme();
+updateInstallUI();
 route();
 aiStatus();
 // Пришли данные с другого устройства: тема, валюта и текущий экран — по новым данным

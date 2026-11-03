@@ -331,3 +331,21 @@ main { outline: none; }
 .danger-zone summary { cursor: pointer; color: var(--text-3); font-size: 14px; }
 .danger-zone[open] summary { margin-bottom: 12px; }
 .btn-danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 50%, transparent); }
+
+/* ---------- Установка приложения ---------- */
+.install-card { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 18px 20px; }
+.install-card img { border-radius: 12px; flex: none; }
+.install-text { flex: 1; min-width: 200px; }
+.install-text h2 { font-size: 20px; font-weight: 500; }
+.install-text p { margin-top: 4px; font-size: 14px; }
+.install-actions { display: flex; align-items: center; gap: 4px; }
+.install-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; counter-reset: step; }
+.install-steps li { display: flex; align-items: flex-start; gap: 12px; line-height: 1.45; }
+.install-step-icon { display: grid; place-items: center; width: 36px; height: 36px; flex: none; border-radius: 10px; background: var(--surface-2); color: var(--accent); }
+.install-step-icon svg { width: 20px; height: 20px; }
+.install-step-icon img { border-radius: 6px; }
+
+/* Запуск как приложение: шапка не заезжает под вырез, если система отдала экран целиком */
+@media (display-mode: standalone) and (max-width: 1023px) {
+  html[data-glass] .topbar { margin-top: calc(8px + env(safe-area-inset-top)); top: calc(8px + env(safe-area-inset-top)); }
+}

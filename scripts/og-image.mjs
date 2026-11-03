@@ -1,7 +1,8 @@
 /* Картинки для превью ссылки и иконок: SVG → PNG через resvg со шрифтом Manrope из scripts/fonts.
-   Запуск: npm run build:og → public/og.png (1200×630), public/apple-touch-icon.png (180×180) */
+   Запуск: npm run build:og → public/og.png (1200×630), public/apple-touch-icon.png (180×180),
+   public/icons/icon-192.png, icon-512.png (со скруглением) и icon-maskable-512.png (для Android) */
 import { Resvg } from '@resvg/resvg-js';
-import { writeFile } from 'node:fs/promises';
+import { writeFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -36,6 +37,14 @@ const icon = `<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" v
   ${logo(0, 0, 180).replace('rx="13"', 'rx="0"')}
 </svg>`; // углы скругляет сама система
 
+// Иконка приложения: со скруглёнными углами или на весь квадрат с полями — Android сам обрежет
+// её кругом или «сквиклом», поэтому знак уменьшен до безопасной зоны (80 % в центре)
+const appIcon = maskable => `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  ${maskable
+    ? `<rect width="512" height="512" fill="#6B3FD6"/><g transform="translate(76.8 76.8) scale(0.7)">${logo(0, 0, 512).replace(/<rect[^>]*\/>/, '')}</g>`
+    : logo(0, 0, 512)}
+</svg>`;
+
 const render = (svg, width) => new Resvg(svg, {
   fitTo: { mode: 'width', value: width },
   font: { fontFiles: fonts, loadSystemFonts: false, defaultFontFamily: 'Manrope' },
@@ -43,4 +52,8 @@ const render = (svg, width) => new Resvg(svg, {
 
 await writeFile(`${root}public/og.png`, render(og, 1200));
 await writeFile(`${root}public/apple-touch-icon.png`, render(icon, 180));
-console.log('Готово: public/og.png, public/apple-touch-icon.png');
+await mkdir(`${root}public/icons`, { recursive: true });
+await writeFile(`${root}public/icons/icon-192.png`, render(appIcon(false), 192));
+await writeFile(`${root}public/icons/icon-512.png`, render(appIcon(false), 512));
+await writeFile(`${root}public/icons/icon-maskable-512.png`, render(appIcon(true), 512));
+console.log('Готово: public/og.png, public/apple-touch-icon.png, public/icons/*');

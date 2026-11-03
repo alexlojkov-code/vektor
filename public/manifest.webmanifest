@@ -1,0 +1,25 @@
+{
+  "id": "/app.html",
+  "name": "Вектор — AI-ассистент маркетолога",
+  "short_name": "Вектор",
+  "description": "AI-чат по 16 направлениям маркетинга, задачи и калькулятор метрик в одном окне.",
+  "lang": "ru",
+  "dir": "ltr",
+  "start_url": "/app.html#/today",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0D071A",
+  "theme_color": "#0D071A",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Новый чат с AI", "short_name": "Новый чат", "url": "/app.html#/chat", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Задачи", "url": "/app.html#/tasks", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Калькулятор метрик", "short_name": "Калькулятор", "url": "/app.html#/calc", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
