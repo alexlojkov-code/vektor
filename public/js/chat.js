@@ -19,7 +19,11 @@ async function renderBanner(el) {
   const s = await aiStatus();
   if (!el.isConnected) return;
   if (!s.enabled) {
-    el.innerHTML = `<div class="banner">${icon('sparkle')}<span><b>AI пока не подключён.</b> Задачи и калькулятор работают. Чтобы включить ответы, добавьте ключ <code>ANTHROPIC_API_KEY</code> на сервере.</span></div>`;
+    el.innerHTML = `<div class="banner">${icon('sparkle')}<span><b>AI пока не подключён.</b> Задачи и калькулятор работают.</span></div>`;
+  } else if (s.quota && s.quota.remaining <= 5) {
+    el.innerHTML = `<div class="banner">${icon('sparkle')}<span>${s.quota.remaining
+      ? `Сегодня осталось <b>${s.quota.remaining}</b> из ${s.quota.limit} запросов к AI.`
+      : `<b>Лимит запросов к AI на сегодня исчерпан.</b> Задачи и калькулятор работают.`}${s.quota.guest ? ' Войдите в аккаунт, чтобы лимит был больше.' : ''}</span></div>`;
   } else if (s.provider === 'mock') {
     el.innerHTML = `<div class="banner banner-demo"><span class="badge">Демо-режим</span><span>Ответы шаблонные, без обращения к AI.</span></div>`;
   }
@@ -78,6 +82,10 @@ async function generate(chat) {
         buf = buf.slice(nl + 1);
         if (!line) continue;
         const ev = JSON.parse(line);
+        if (ev.type === 'start' && Number.isFinite(ev.remaining)) {
+          // Остаток лимита на сегодня — для подсказки при следующем открытии чата
+          statusPromise = aiStatus().then(s => (s.quota ? { ...s, quota: { ...s.quota, remaining: ev.remaining, used: s.quota.limit - ev.remaining } } : s));
+        }
         if (ev.type === 'delta') { message.content += ev.text; paint(chat, message); }
         if (ev.type === 'error') throw new Error(ev.detail || 'Ошибка AI');
       }

@@ -1,7 +1,7 @@
 // Общий интерфейс AI-провайдера.
 //
 // interface AIProvider {
-//   name: 'anthropic' | 'mock' | 'none';
+//   name: 'openai' | 'anthropic' | 'mock' | 'none';
 //   enabled: boolean;
 //   model?: string;
 //   reason?: string;          // почему выключен
@@ -28,6 +28,11 @@ export const getProvider = () => (_provider ||= createProvider());
 async function createProvider() {
   if (config.aiProvider === 'mock') return createMockProvider();
   if (config.aiProvider === 'none') return createDisabledProvider('выключен в AI_PROVIDER');
+  if (config.aiProvider === 'openai') {
+    if (!config.openaiKey) return createDisabledProvider('ключ не задан');
+    const { createOpenAIProvider } = await import('./openai.js');
+    return createOpenAIProvider(config);
+  }
   if (!config.apiKey) return createDisabledProvider('ключ не задан');
 
   try {

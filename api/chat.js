@@ -1,7 +1,9 @@
-/* POST /api/chat — ответ AI потоком NDJSON: start → delta… → done | error. */
+/* POST /api/chat — ответ AI потоком NDJSON: start → delta… → done | error.
+   Каждый запрос списывается из дневного лимита (api/_lib/quota.js); неудачный — возвращается. */
 import { route, problem, body, rateLimited } from './_lib/server.js';
 import { getProvider, AIError } from './_lib/ai/provider.js';
 import { DIRECTIONS, cleanBrand, buildSystemPrompt } from './_lib/prompts.js';
+import { takeQuota } from './_lib/quota.js';
 
 const MAX_MESSAGES = 40;
 const MAX_MESSAGE = 8000;
@@ -33,6 +35,10 @@ export default route(['POST'], async (req, res) => {
   const provider = await getProvider();
   if (!provider.enabled) return problem(res, 503, 'AI_DISABLED', 'AI пока не подключён. Задачи и калькулятор работают.');
 
+  // Демо-режим ничего не стоит — лимиты только для настоящего AI
+  const quota = provider.name === 'mock' ? { ok: true, remaining: null, refund: async () => {} } : await takeQuota(req);
+  if (!quota.ok) return problem(res, 429, quota.code, quota.detail);
+
   const messages = input.messages.map(m => ({ role: m.role, content: m.content }));
   const system = buildSystemPrompt(input.direction, cleanBrand(input.brand));
   const controller = new AbortController();
@@ -40,7 +46,7 @@ export default route(['POST'], async (req, res) => {
 
   const events = provider.chat({ system, messages, direction: input.direction }, { signal: controller.signal });
   const write = obj => res.write(JSON.stringify(obj) + '\n');
-  let started = false;
+  let started = false, answered = false;
 
   try {
     for await (const event of events) {
@@ -50,16 +56,20 @@ export default route(['POST'], async (req, res) => {
         res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
         res.setHeader('Cache-Control', 'no-store');
         res.setHeader('X-Accel-Buffering', 'no');
-        write({ type: 'start', model: provider.model });
+        res.setHeader('X-AI-Remaining', String(quota.remaining ?? ''));
+        write({ type: 'start', model: provider.model, remaining: quota.remaining });
         started = true;
       }
+      if (event.type === 'delta') answered = true;
       write(event);
     }
   } catch (err) {
     const e = err instanceof AIError ? err : new AIError('AI_UNAVAILABLE', 502, 'Не удалось связаться с AI');
     if (!(err instanceof AIError)) console.error(err);
+    if (!answered) await quota.refund(); // ответа не было — запрос не засчитываем
     if (!started) return problem(res, e.status, e.code, e.message);
     write({ type: 'error', code: e.code, detail: e.message });
   }
+  if (!answered && controller.signal.aborted) await quota.refund();
   res.end();
 });

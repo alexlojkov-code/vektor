@@ -31,6 +31,7 @@ function redisStore() {
     get: key => cmd('GET', key),
     set: (key, value, { ex, nx } = {}) => cmd('SET', key, value, ...(ex ? ['EX', ex] : []), ...(nx ? ['NX'] : [])).then(r => r === 'OK'),
     del: (...keys) => cmd('DEL', ...keys),
+    decr: key => cmd('DECR', key),
     async hit(key, ttl) {
       const n = await cmd('INCR', key);
       if (n === 1) await cmd('EXPIRE', key, ttl);
@@ -61,6 +62,10 @@ function memoryStore() {
       return true;
     },
     del: async (...keys) => keys.forEach(k => map.delete(k)),
+    async decr(key) {
+      const e = map.get(key);
+      if (e) e.value = String(Number(e.value) - 1);
+    },
     async hit(key, ttl) {
       if (read(key) === null) { write(key, 1, ttl); return 1; }
       const e = map.get(key);
