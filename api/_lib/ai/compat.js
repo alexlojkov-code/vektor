@@ -3,8 +3,9 @@
    Модель выбирает пользователь из списка config.aiModels; остальные из списка — запасные.
    Как в Eatlas: если модель перегружена (429/5xx), недоступна ключу (404)
    или молчит в потоке — сразу пробуем следующую; занятые модели на время откладываем.
-   Под нагрузкой Google обрывает поток без причины завершения: такой ответ начинаем заново
-   (событие reset — клиент очищает текст). Когда заняты все модели, после паузы делаем ещё один круг. */
+   Под нагрузкой Google присылает посреди потока ошибку 503 обычным JSON, без «data:». Такой ответ
+   начинаем заново (событие reset — клиент очищает текст). Когда заняты все модели, после паузы делаем
+   ещё один круг, но новые попытки начинаем только в пределах RETRY_BUDGET_MS. */
 import { AIError } from './provider.js';
 
 const BUSY_MS = 3 * 60 * 1000;
@@ -12,6 +13,7 @@ const MISSING_MS = 60 * 60 * 1000;
 const FIRST_EVENT_MS = 20000;  // нет первого кусочка ответа — модель считаем занятой
 const IDLE_MS = 60000;         // пауза посреди ответа дольше минуты — обрыв
 const RETRY_PAUSE_MS = 2000;   // пауза перед вторым кругом по моделям
+const RETRY_BUDGET_MS = 45000; // дольше новые попытки не начинаем: пользователь ждёт
 const isReasoning = model => /^(gpt-5|o\d|gemini-[3-9])/.test(model);
 
 // Причина ошибки сервиса → что делать: перейти к следующей модели или сразу сообщить пользователю
@@ -30,13 +32,15 @@ function classify(status, err) {
   return { fatal: new AIError('AI_UNAVAILABLE', 502, `Ошибка AI-провайдера (${status})`) };
 }
 
-/* Разбор SSE: выдаёт JSON-события. Значение { timeout: true } — данных не было дольше waitMs().
+/* Разбор SSE: выдаёт JSON-события. { timeout: true } — данных не было дольше waitMs(),
+   { streamError: true } — вместо события пришла ошибка сервиса (строка без «data:»).
    Последняя строка может прийти без перевода строки, поэтому остаток буфера разбираем и в конце. */
 export async function* readSSE(body, waitMs) {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   const parse = line => {
     const t = line.trim();
+    if (/^[[{]/.test(t)) return { streamError: true };
     if (!t.startsWith('data:')) return null;
     const data = t.slice(5).trim();
     if (data === '[DONE]') return null;
@@ -57,6 +61,7 @@ export async function* readSSE(body, waitMs) {
         const ev = parse(buf.slice(0, nl));
         buf = buf.slice(nl + 1);
         if (ev) yield ev;
+        if (ev?.streamError) return;
       }
     }
     const ev = parse(buf + decoder.decode());
@@ -105,7 +110,11 @@ export function createCompatProvider(config) {
       let last = new AIError('AI_UNAVAILABLE', 502, 'Не удалось связаться с AI');
 
       const attempts = [...order, ...order]; // два круга
+      const started = Date.now();
+      const budget = config.aiRetryBudgetMs ?? RETRY_BUDGET_MS;
+      const canRetry = i => i < attempts.length - 1 && Date.now() - started < budget;
       for (let i = 0; i < attempts.length; i++) {
+        if (i > 0 && !canRetry(i - 1)) break;
         const model = attempts[i];
         if (i === order.length) {
           await new Promise(r => setTimeout(r, config.aiRetryPauseMs ?? RETRY_PAUSE_MS));
@@ -146,7 +155,12 @@ export function createCompatProvider(config) {
               busyUntil.set(model, Date.now() + BUSY_MS);
               break;
             }
-            if (ev.error) throw new AIError('AI_UNAVAILABLE', 502, 'Ошибка AI-провайдера во время ответа');
+            if (ev.streamError || ev.error) {
+              console.warn(`${config.aiProvider} ${model}: ошибка посреди ответа`);
+              busyUntil.set(model, Date.now() + BUSY_MS);
+              last = new AIError('AI_RATE_LIMIT', 429, 'AI перегружен, попробуйте через минуту');
+              break;
+            }
             if (ev.model) served = ev.model;
             if (ev.usage) usage = ev.usage;
             const choice = ev.choices?.[0];
@@ -167,7 +181,7 @@ export function createCompatProvider(config) {
           throw new AIError('AI_REFUSED', 422, 'AI не может помочь с этим запросом. Попробуйте переформулировать его.');
         }
         // Поток оборвался без причины завершения: начинаем заново, а если попыток не осталось — честно помечаем
-        if (!finish && i < attempts.length - 1) {
+        if (!finish && canRetry(i)) {
           busyUntil.set(model, Date.now() + BUSY_MS);
           yield { type: 'reset' };
           continue;

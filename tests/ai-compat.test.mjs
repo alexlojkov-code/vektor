@@ -32,6 +32,11 @@ const server = createServer((req, res) => {
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'начало ' } }] })}\n\n`);
       return res.end(`data: ${JSON.stringify({ choices: [{ delta: { content: 'и конец' }, finish_reason: 'stop' }] })}`);
     }
+    // Так Google сообщает о перегрузке посреди потока: многострочный JSON без «data:»
+    if (body.model === 'mid-error') {
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'начало ответа' } }] })}\n\n`);
+      return res.end('[{\n  "error": {\n    "code": 503,\n    "status": "UNAVAILABLE"\n  }\n}\n]\n');
+    }
     if (body.model === 'cut-off') {
       return res.end(`data: ${JSON.stringify({ choices: [{ delta: { content: 'обрыв на полу' } }] })}\n\n`);
     }
@@ -138,6 +143,22 @@ test('оборванный ответ начинается заново на д�
   seen.length = 0;
   assert.deepEqual(await run(provider('cut-off', ['gpt-5.4-nano'])), { text: 'Привет, маркетолог!', done: 'end_turn' });
   assert.deepEqual(seen.map(x => x.model), ['cut-off', 'gpt-5.4-nano']);
+});
+
+test('ошибка 503 посреди потока: ответ начинается заново на другой модели', async () => {
+  seen.length = 0;
+  assert.deepEqual(await run(provider('mid-error', ['gpt-5.4-nano'])), { text: 'Привет, маркетолог!', done: 'end_turn' });
+  assert.deepEqual(seen.map(x => x.model), ['mid-error', 'gpt-5.4-nano']);
+});
+
+test('ошибка посреди потока на всех моделях — понятная ошибка, а не обрезанный текст', async () => {
+  await assert.rejects(run(provider('mid-error')), { code: 'AI_RATE_LIMIT' });
+});
+
+test('новые попытки не начинаются после исчерпания времени', async () => {
+  seen.length = 0;
+  await assert.rejects(run(provider('busy', ['missing'], { aiRetryBudgetMs: 0 })), { code: 'AI_RATE_LIMIT' });
+  assert.equal(seen.length, 1);
 });
 
 test('все модели заняты: второй круг после паузы', async () => {

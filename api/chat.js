@@ -63,6 +63,7 @@ export default route(['POST'], async (req, res) => {
         started = true;
       }
       if (event.type === 'delta') answered = true;
+      if (event.type === 'reset') answered = false;
       write(event);
     }
   } catch (err) {

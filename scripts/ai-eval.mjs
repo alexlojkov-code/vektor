@@ -32,8 +32,9 @@ async function ask(direction, question) {
   if (!res.ok) return { error: `HTTP ${res.status}: ${(await res.json().catch(() => ({}))).detail}` };
   const events = (await res.text()).split('\n').filter(Boolean).map(l => JSON.parse(l));
   const failure = events.find(e => e.type === 'error');
+  const lastReset = events.map(e => e.type).lastIndexOf('reset'); // до этого места ответ отменён сервером
   return {
-    text: events.filter(e => e.type === 'delta').map(e => e.text).join(''),
+    text: events.slice(lastReset + 1).filter(e => e.type === 'delta').map(e => e.text).join(''),
     stop: events.find(e => e.type === 'done')?.stopReason,
     remaining: events.find(e => e.type === 'start')?.remaining,
     ...(failure && { error: failure.detail }),
