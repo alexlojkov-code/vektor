@@ -26,7 +26,7 @@ function validate(input) {
 }
 
 export default route(['POST'], async (req, res) => {
-  if (rateLimited(req)) return problem(res, 429, 'RATE_LIMITED', 'Слишком много запросов, подождите минуту');
+  if (await rateLimited(req)) return problem(res, 429, 'RATE_LIMITED', 'Слишком много запросов, подождите минуту');
 
   const input = body(req);
   const error = validate(input);

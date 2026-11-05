@@ -5,12 +5,14 @@ import { route, send, problem, body } from './_lib/server.js';
 import { db } from './_lib/db.js';
 import {
   normalizeEmail, passwordError, hashSecret, verifySecret, newRecoveryCode, normalizeCode,
-  findUserByEmail, createUser, saveUser, startSession, endSession, currentUser, requireDb, tooManyAttempts,
+  findUserByEmail, createUser, saveUser, startSession, endSession, currentUser, requireDb, tooManyAttempts, recordAttempt,
 } from './_lib/auth.js';
 
 // Хэш-заглушка: проверка пароля несуществующего аккаунта занимает столько же времени
 const DUMMY = 'scrypt$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
 const publicUser = user => ({ email: user.email, createdAt: user.createdAt });
+const TOO_MANY = 'Слишком много попыток, подождите 15 минут';
+const validSecret = s => typeof s === 'string' && s.length > 0 && s.length <= 200;
 
 const ACTIONS = {
   async register(req, res, b) {
@@ -18,8 +20,9 @@ const ACTIONS = {
     if (!email) return problem(res, 400, 'INVALID_INPUT', 'Проверьте адрес почты');
     const err = passwordError(b.password);
     if (err) return problem(res, 400, 'INVALID_INPUT', err);
-    if (await tooManyAttempts(req, email)) return problem(res, 429, 'TOO_MANY', 'Слишком много попыток, подождите 15 минут');
-    const created = await createUser(email, String(b.password));
+    if (await tooManyAttempts(req)) return problem(res, 429, 'TOO_MANY', TOO_MANY);
+    await recordAttempt(req); // каждая регистрация считается: защита от массового создания аккаунтов
+    const created = await createUser(email, b.password);
     if (!created) return problem(res, 409, 'EMAIL_TAKEN', 'Аккаунт с этой почтой уже есть — войдите');
     await startSession(req, res, created.user);
     send(res, 201, { user: publicUser(created.user), recoveryCode: created.recoveryCode });
@@ -27,11 +30,14 @@ const ACTIONS = {
 
   async login(req, res, b) {
     const email = normalizeEmail(b.email);
-    if (!email || !b.password) return problem(res, 400, 'INVALID_INPUT', 'Введите почту и пароль');
-    if (await tooManyAttempts(req, email)) return problem(res, 429, 'TOO_MANY', 'Слишком много попыток, подождите 15 минут');
+    if (!email || !validSecret(b.password)) return problem(res, 400, 'INVALID_INPUT', 'Введите почту и пароль');
+    if (await tooManyAttempts(req, email)) return problem(res, 429, 'TOO_MANY', TOO_MANY);
     const user = await findUserByEmail(email);
-    const ok = await verifySecret(String(b.password), user?.password || DUMMY);
-    if (!user || !ok) return problem(res, 401, 'BAD_CREDENTIALS', 'Неверная почта или пароль');
+    const ok = await verifySecret(b.password, user?.password || DUMMY);
+    if (!user || !ok) {
+      await recordAttempt(req, email);
+      return problem(res, 401, 'BAD_CREDENTIALS', 'Неверная почта или пароль');
+    }
     await startSession(req, res, user);
     send(res, 200, { user: publicUser(user) });
   },
@@ -48,12 +54,15 @@ const ACTIONS = {
     if (!email || code.length < 19) return problem(res, 400, 'INVALID_INPUT', 'Введите почту и код восстановления');
     const err = passwordError(b.password);
     if (err) return problem(res, 400, 'INVALID_INPUT', err);
-    if (await tooManyAttempts(req, email)) return problem(res, 429, 'TOO_MANY', 'Слишком много попыток, подождите 15 минут');
+    if (await tooManyAttempts(req, email)) return problem(res, 429, 'TOO_MANY', TOO_MANY);
     const user = await findUserByEmail(email);
     const ok = await verifySecret(code, user?.recovery || DUMMY);
-    if (!user || !ok) return problem(res, 401, 'BAD_CREDENTIALS', 'Неверная почта или код восстановления');
+    if (!user || !ok) {
+      await recordAttempt(req, email);
+      return problem(res, 401, 'BAD_CREDENTIALS', 'Неверная почта или код восстановления');
+    }
     const recoveryCode = newRecoveryCode();
-    user.password = await hashSecret(String(b.password));
+    user.password = await hashSecret(b.password);
     user.recovery = await hashSecret(recoveryCode);
     user.sessionVersion = (user.sessionVersion || 1) + 1;
     await saveUser(user);
@@ -64,8 +73,11 @@ const ACTIONS = {
   async delete(req, res, b) {
     const user = await currentUser(req);
     if (!user) return problem(res, 401, 'UNAUTHORIZED', 'Войдите в аккаунт');
-    if (await tooManyAttempts(req, user.email)) return problem(res, 429, 'TOO_MANY', 'Слишком много попыток, подождите 15 минут');
-    if (!(await verifySecret(String(b.password || ''), user.password))) return problem(res, 401, 'BAD_CREDENTIALS', 'Неверный пароль');
+    if (await tooManyAttempts(req, user.email)) return problem(res, 429, 'TOO_MANY', TOO_MANY);
+    if (!validSecret(b.password) || !(await verifySecret(b.password, user.password))) {
+      await recordAttempt(req, user.email);
+      return problem(res, 401, 'BAD_CREDENTIALS', 'Неверный пароль');
+    }
     await endSession(req, res);
     await db.del(`user:${user.id}`, `user:email:${user.email}`, `data:${user.id}`);
     send(res, 200, { ok: true });

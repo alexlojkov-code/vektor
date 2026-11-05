@@ -6,10 +6,25 @@ import { db } from './_lib/db.js';
 import { currentUser, requireDb } from './_lib/auth.js';
 
 const MAX_BYTES = 4_000_000; // лимит тела запроса на Vercel — 4,5 МБ
+const MAX_ITEMS = 5000;
+const ID = /^[\w-]{1,100}$/;
+const isObject = x => !!x && typeof x === 'object' && !Array.isArray(x);
+const validList = (list, check = () => true) => Array.isArray(list) && list.length <= MAX_ITEMS
+  && list.every(x => isObject(x) && ID.test(x.id) && check(x));
+
+// id попадают в разметку и адреса, поэтому принимаем только простые значения
+function validData(d) {
+  return isObject(d)
+    && validList(d.chats, c => validList(c.messages))
+    && validList(d.tasks)
+    && (d.brand === undefined || isObject(d.brand))
+    && (d.settings === undefined || isObject(d.settings))
+    && (d.deleted === undefined || (isObject(d.deleted) && Object.keys(d.deleted).length <= MAX_ITEMS));
+}
 
 export default route(['GET', 'PUT'], async (req, res) => {
   if (!requireDb(res)) return;
-  if (rateLimited(req, { limit: 60 })) return problem(res, 429, 'TOO_MANY', 'Слишком частая синхронизация');
+  if (await rateLimited(req, { scope: 'sync', limit: 60 })) return problem(res, 429, 'TOO_MANY', 'Слишком частая синхронизация');
   const user = await currentUser(req);
   if (!user) return problem(res, 401, 'UNAUTHORIZED', 'Войдите в аккаунт');
   const key = `data:${user.id}`;
@@ -22,9 +37,7 @@ export default route(['GET', 'PUT'], async (req, res) => {
   const b = body(req);
   const baseRev = Number.isInteger(b.baseRev) && b.baseRev >= 0 ? b.baseRev : null;
   const d = b.data;
-  if (baseRev === null || !d || typeof d !== 'object' || !Array.isArray(d.chats) || !Array.isArray(d.tasks)) {
-    return problem(res, 400, 'INVALID_INPUT', 'Неверный формат данных');
-  }
+  if (baseRev === null || !validData(d)) return problem(res, 400, 'INVALID_INPUT', 'Неверный формат данных');
   const doc = {
     rev: baseRev + 1,
     updatedAt: new Date().toISOString(),

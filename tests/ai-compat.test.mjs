@@ -6,7 +6,7 @@ import { createServer } from 'node:http';
 
 process.env.AI_DAILY_LIMIT_GUEST = '2';
 process.env.AI_DAILY_LIMIT_TOTAL = '3';
-const { createOpenAIProvider } = await import('../api/_lib/ai/openai.js');
+const { createCompatProvider, readSSE } = await import('../api/_lib/ai/compat.js');
 const { takeQuota, quotaStatus } = await import('../api/_lib/quota.js');
 
 // Поведение подставного сервера по имени модели
@@ -27,6 +27,14 @@ const server = createServer((req, res) => {
     if (body.model === 'broke') return fail(429, 'insufficient_quota', 'You exceeded your current quota');
     if (body.model === 'gpt-5-noeffort' && body.reasoning_effort) return fail(400, 'unsupported_parameter', 'Unsupported parameter: reasoning_effort');
     res.writeHead(200, { 'content-type': 'text/event-stream' });
+    // Как обрывал ответ Google: последний кусок без перевода строки, в нём конец текста и причина завершения
+    if (body.model === 'no-newline') {
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'начало ' } }] })}\n\n`);
+      return res.end(`data: ${JSON.stringify({ choices: [{ delta: { content: 'и конец' }, finish_reason: 'stop' }] })}`);
+    }
+    if (body.model === 'cut-off') {
+      return res.end(`data: ${JSON.stringify({ choices: [{ delta: { content: 'обрыв на полу' } }] })}\n\n`);
+    }
     const send = obj => res.write(`data: ${JSON.stringify(obj)}\n\n`);
     send({ model: body.model, choices: [{ delta: { role: 'assistant', content: '' } }] });
     send({ model: body.model, choices: [{ delta: { content: 'Привет, ' } }] });
@@ -39,7 +47,7 @@ let base;
 before(() => new Promise(r => server.listen(0, '127.0.0.1', () => { base = `http://127.0.0.1:${server.address().port}`; r(); })));
 after(() => server.close());
 
-const provider = (aiModel, fallbacks = [], extra = {}) => createOpenAIProvider({
+const provider = (aiModel, fallbacks = [], extra = {}) => createCompatProvider({
   aiProvider: 'openai', compatKey: 'test-key', compatBaseUrl: base, tokenParam: 'max_completion_tokens',
   aiModel, aiModels: [aiModel, ...fallbacks].map(id => ({ id, label: id })),
   aiMaxTokens: 1000, aiTimeoutMs: 5000, aiEffort: 'low', ...extra,
@@ -47,7 +55,7 @@ const provider = (aiModel, fallbacks = [], extra = {}) => createOpenAIProvider({
 const gemini = (models, extra) => provider(models[0], models.slice(1), { aiProvider: 'gemini', tokenParam: 'max_tokens', ...extra });
 async function run(p, model) {
   let text = '', done = null;
-  for await (const ev of p.chat({ system: 'Ты — Вектор', messages: [{ role: 'user', content: 'Привет' }], model }, { signal: new AbortController().signal })) {
+  for await (const ev of p.chat({ system: [{ text: 'Ты — Вектор' }, { text: 'Направление' }], messages: [{ role: 'user', content: 'Привет' }], model }, { signal: new AbortController().signal })) {
     if (ev.type === 'delta') text += ev.text;
     if (ev.type === 'done') done = ev.stopReason;
   }
@@ -58,7 +66,7 @@ test('поток собирается в ответ, ключ и системн�
   seen.length = 0;
   assert.deepEqual(await run(provider('gpt-5.4-mini')), { text: 'Привет, маркетолог!', done: 'end_turn' });
   assert.equal(seen[0].auth, 'Bearer test-key');
-  assert.deepEqual(seen[0].system, { role: 'system', content: 'Ты — Вектор' });
+  assert.deepEqual(seen[0].system, { role: 'system', content: 'Ты — Вектор\n\nНаправление' });
   assert.equal(seen[0].effort, 'low');
 });
 
@@ -119,4 +127,20 @@ test('Gemini: неверный ключ (ошибка массивом) — AI_A
   seen.length = 0;
   assert.equal((await run(gemini(['gemini-free0', 'gemini-3.6-flash']))).text, 'Привет, маркетолог!');
   assert.deepEqual(seen.map(x => x.model), ['gemini-free0', 'gemini-3.6-flash']);
+});
+
+test('последний кусок ответа без перевода строки не теряется', async () => {
+  assert.deepEqual(await run(provider('no-newline')), { text: 'начало и конец', done: 'end_turn' });
+});
+
+test('поток без причины завершения помечается как неполный', async () => {
+  assert.deepEqual(await run(provider('cut-off')), { text: 'обрыв на полу', done: 'incomplete' });
+});
+
+test('readSSE: русский текст, разрезанный между кусками потока, собирается целиком', async () => {
+  const bytes = new TextEncoder().encode('data: {"t":"Привет"}\n\ndata: [DONE]\n\n');
+  const body = new ReadableStream({ start(c) { c.enqueue(bytes.slice(0, 13)); c.enqueue(bytes.slice(13)); c.close(); } });
+  const out = [];
+  for await (const ev of readSSE(body, () => 1000)) out.push(ev);
+  assert.deepEqual(out, [{ t: 'Привет' }]);
 });

@@ -1,6 +1,6 @@
 // AI-чат: выбор направления и сценария, поток ответа (NDJSON), стоп, оценки, «В задачи».
 import { state, save, createChat, touchChat, deleteChat, uid, now, addTask } from './store.js';
-import { esc, icon, applyColors, toast, openModal, confirmDialog, todayISO } from './ui.js';
+import { esc, errorText, icon, applyColors, toast, openModal, confirmDialog, todayISO } from './ui.js';
 import { DIRECTIONS, directionById } from './directions.js';
 import { renderMarkdown, extractSteps } from './markdown.js';
 
@@ -83,31 +83,18 @@ async function generate(chat) {
       const p = await res.json().catch(() => ({}));
       throw new Error(p.detail || `Ошибка сервера (${res.status})`);
     }
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = '';
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      let nl;
-      while ((nl = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, nl).trim();
-        buf = buf.slice(nl + 1);
-        if (!line) continue;
-        const ev = JSON.parse(line);
-        if (ev.type === 'start' && Number.isFinite(ev.remaining)) {
-          // Остаток лимита на сегодня — для подсказки при следующем открытии чата
-          statusPromise = aiStatus().then(s => (s.quota ? { ...s, quota: { ...s.quota, remaining: ev.remaining, used: s.quota.limit - ev.remaining } } : s));
-        }
-        if (ev.type === 'delta') { message.content += ev.text; paint(chat, message); }
-        if (ev.type === 'error') throw new Error(ev.detail || 'Ошибка AI');
+    for await (const ev of readEvents(res.body)) {
+      if (ev.type === 'start' && Number.isFinite(ev.remaining)) {
+        // Остаток лимита на сегодня — для подсказки при следующем открытии чата
+        statusPromise = aiStatus().then(s => (s.quota ? { ...s, quota: { ...s.quota, remaining: ev.remaining, used: s.quota.limit - ev.remaining } } : s));
       }
+      if (ev.type === 'delta') { message.content += ev.text; paint(chat, message); }
+      if (ev.type === 'done' && ev.stopReason !== 'end_turn') message.incomplete = true;
+      if (ev.type === 'error') throw new Error(ev.detail || 'Ошибка AI');
     }
   } catch (err) {
     if (err.name === 'AbortError') message.stopped = true;
-    else if (message.content) { message.error = `Ответ прерван: ${err.message}`; }
-    else message.error = err.message === 'Failed to fetch' ? 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.' : err.message;
+    else message.error = message.content ? `Ответ прерван: ${errorText(err)}` : errorText(err);
   } finally {
     delete message.pending;
     active.delete(chat.id);
@@ -116,18 +103,38 @@ async function generate(chat) {
   }
 }
 
+// Поток NDJSON: по объекту на строку. Последняя строка может прийти без перевода строки.
+async function* readEvents(body) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let nl;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (line) yield JSON.parse(line);
+    }
+  }
+  if (buf.trim()) yield JSON.parse(buf);
+}
+
 /* ---------- Отрисовка сообщений ---------- */
 function messageHTML(chat, m, isLast) {
   if (m.role === 'user') {
-    return `<article class="msg msg-user" data-id="${m.id}"><div class="bubble">${esc(m.content).replace(/\n/g, '<br>')}</div></article>`;
+    return `<article class="msg msg-user" data-id="${esc(m.id)}"><div class="bubble">${esc(m.content).replace(/\n/g, '<br>')}</div></article>`;
   }
   const steps = m.content && !m.pending ? extractSteps(m.content) : [];
   const body = m.content ? renderMarkdown(m.content) : (m.pending ? '<p class="typing" aria-label="AI печатает"><i></i><i></i><i></i></p>' : '');
-  return `<article class="msg msg-ai${m.error ? ' msg-error' : ''}" data-id="${m.id}">
+  return `<article class="msg msg-ai${m.error ? ' msg-error' : ''}" data-id="${esc(m.id)}">
     <div class="ai-avatar" aria-hidden="true"></div>
     <div class="msg-main">
       <div class="md${m.pending ? ' streaming' : ''}">${body}</div>
       ${m.stopped ? '<p class="subtle msg-note">Остановлено</p>' : ''}
+      ${m.incomplete ? '<p class="subtle msg-note">Ответ мог оборваться. Нажмите «Повторить» или попросите продолжить.</p>' : ''}
       ${m.error ? `<p class="msg-err">${esc(m.error)}</p>` : ''}
       ${m.pending ? '' : `<div class="msg-actions">
         ${m.content ? `<button class="btn btn-icon btn-act" data-act="copy" title="Копировать" aria-label="Копировать">${icon('copy')}</button>` : ''}
@@ -325,7 +332,7 @@ export function renderChat(main, chat) {
     const m = chat.messages.find(x => x.id === id);
     const act = btn.dataset.act;
     if (act === 'copy') navigator.clipboard.writeText(m.content).then(() => toast('Скопировано', { type: 'success' }), () => toast('Не удалось скопировать', { type: 'error' }));
-    if (act === 'up' || act === 'down') { m.rating = m.rating === act ? undefined : act; save(); refresh(chat); }
+    if (act === 'up' || act === 'down') { m.rating = m.rating === act ? undefined : act; chat.updatedAt = now(); save(); refresh(chat); }
     if (act === 'retry') { chat.messages = chat.messages.filter(x => x !== m); save(); generate(chat); }
     if (act === 'tasks') openStepsToTasks(chat, m);
   });

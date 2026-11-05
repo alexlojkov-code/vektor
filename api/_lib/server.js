@@ -1,5 +1,7 @@
 /* Общая серверная часть: ответы, ошибки, проверки, лимит частоты.
    Файлы в api/_lib не становятся отдельными функциями Vercel (префикс «_»). */
+import { createHash } from 'node:crypto';
+import { counters } from './db.js';
 
 /* ---------- ответы (ошибки в духе RFC 9457) ---------- */
 export function send(res, status, body) {
@@ -49,14 +51,14 @@ export function body(req) {
   return {};
 }
 
-/* ---------- лимит частоты: скользящее окно в памяти экземпляра функции ---------- */
-const hits = new Map();
-export function rateLimited(req, { limit = 20, windowMs = 60_000 } = {}) {
+/* ---------- клиент и лимит частоты ---------- */
+// Ключ клиента для счётчиков: хэш IP, сам адрес в хранилище не попадает
+export function clientKey(req) {
   const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'local').split(',')[0].trim();
-  const now = Date.now();
-  const recent = (hits.get(ip) || []).filter(t => now - t < windowMs);
-  recent.push(now);
-  hits.set(ip, recent);
-  if (hits.size > 5000) for (const [k, v] of hits) if (now - v[v.length - 1] > windowMs) hits.delete(k);
-  return recent.length > limit;
+  return createHash('sha256').update(`vektor:${ip}`).digest('hex').slice(0, 32);
+}
+
+export async function rateLimited(req, { scope = 'chat', limit = 20 } = {}) {
+  const minute = Math.floor(Date.now() / 60000);
+  return (await counters.hit(`rl:${scope}:${clientKey(req)}:${minute}`, 120)) > limit;
 }

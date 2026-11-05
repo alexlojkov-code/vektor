@@ -92,7 +92,9 @@ export function replaceData(data) {
 export function clearLocal() {
   clearTimeout(timer);
   timer = 0;
-  try { localStorage.removeItem(KEY); } catch {}
+  try {
+    Object.keys(localStorage).filter(k => k.startsWith(KEY)).forEach(k => localStorage.removeItem(k));
+  } catch {}
 }
 const markDeleted = id => { state.deleted[id] = now(); };
 

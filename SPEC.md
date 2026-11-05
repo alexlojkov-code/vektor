@@ -107,7 +107,7 @@ Vektor/
 │       ├── auth.js              # пароли, сессии, защита от перебора
 │       ├── server.js            # ответы, ошибки, проверки, лимит частоты
 │       ├── prompts.js           # базовый промпт и промпты направлений
-│       └── ai/provider.js, openai.js, anthropic.js, mock.js, disabled.js
+│       └── ai/provider.js, compat.js, anthropic.js, mock.js, disabled.js
 └── public/
     ├── index.html               # лендинг
     ├── app.html                 # приложение
@@ -265,7 +265,7 @@ interface Task {
 
 **Модели на выбор** (`config.aiModels`, `GET /api/ai/status` → `models: [{ id, label }]`): Gemini 3.8 Flash (по умолчанию), 3.6 Flash, 3.5 Flash-Lite. Пользователь выбирает модель в шапке чата (`settings.aiModel`, синхронизируется), клиент передаёт `model` в `POST /api/chat`; модель не из списка заменяется моделью по умолчанию. Остальные модели списка — запасные.
 
-**Gemini и OpenAI** (`api/_lib/ai/openai.js`, без SDK): `POST {адрес}/chat/completions` — для Gemini `https://generativelanguage.googleapis.com/v1beta/openai` (`GEMINI_BASE_URL`), для OpenAI `https://api.openai.com/v1` (`OPENAI_BASE_URL`); `stream: true`, `stream_options.include_usage`, лимит ответа 16 000 (`max_tokens` у Gemini, `max_completion_tokens` у OpenAI), системный промпт — сообщением `system`; для моделей `gemini-3+`, `gpt-5*`, `o*` — `reasoning_effort` из `AI_EFFORT` (по умолчанию `low`; если сервис его не знает — повтор без параметра). Ответ SSE переводится в те же события `delta`/`done`.
+**Gemini и OpenAI** (`api/_lib/ai/compat.js`, без SDK): `POST {адрес}/chat/completions` — для Gemini `https://generativelanguage.googleapis.com/v1beta/openai` (`GEMINI_BASE_URL`), для OpenAI `https://api.openai.com/v1` (`OPENAI_BASE_URL`); `stream: true`, `stream_options.include_usage`, лимит ответа 16 000 (`max_tokens` у Gemini, `max_completion_tokens` у OpenAI), системный промпт — сообщением `system`; для моделей `gemini-3+`, `gpt-5*`, `o*` — `reasoning_effort` из `AI_EFFORT` (по умолчанию `low`; если сервис его не знает — повтор без параметра). Ответ SSE переводится в те же события `delta`/`done`.
 
 | Ответ сервиса | Действие |
 |---|---|

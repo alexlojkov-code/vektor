@@ -1,0 +1,7 @@
+# На Vercel нужны только public/ и api/
+tests
+brand
+scripts
+src
+*.pdf
+*.md

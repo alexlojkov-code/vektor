@@ -51,7 +51,10 @@ function memoryStore() {
     if (e && e.until && e.until < Date.now()) { map.delete(key); return null; }
     return e ? e.value : null;
   };
-  const write = (key, value, ex) => map.set(key, { value: String(value), until: ex ? Date.now() + ex * 1000 : 0 });
+  const write = (key, value, ex) => {
+    if (map.size > 5000) for (const [k, e] of map) if (e.until && e.until < Date.now()) map.delete(k);
+    map.set(key, { value: String(value), until: ex ? Date.now() + ex * 1000 : 0 });
+  };
   return {
     enabled: true,
     name: 'memory',
@@ -91,3 +94,6 @@ export const db = url && token && wanted !== 'memory' && wanted !== 'none'
   : wanted === 'memory'
     ? memoryStore()
     : disabledStore(wanted === 'none' ? 'выключено настройкой DB_PROVIDER' : 'хранилище не подключено');
+
+// Счётчики лимитов есть всегда: без Redis — в памяти экземпляра функции (слабее, но защита остаётся)
+export const counters = db.enabled ? db : memoryStore();

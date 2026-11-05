@@ -1,7 +1,7 @@
 /* OpenAI-совместимый Chat Completions (поток SSE) через fetch, без SDK. Работает с Gemini
    (generativelanguage.googleapis.com/v1beta/openai, ключ GEMINI_API_KEY) и OpenAI (OPENAI_API_KEY).
    Модель выбирает пользователь из списка config.aiModels; остальные из списка — запасные.
-   Как в Eatlas: модель из списка, а если она перегружена (429/5xx), недоступна ключу (404)
+   Как в Eatlas: если модель перегружена (429/5xx), недоступна ключу (404)
    или молчит в потоке — сразу пробуем следующую; занятые модели на время откладываем. */
 import { AIError } from './provider.js';
 
@@ -11,11 +11,11 @@ const FIRST_EVENT_MS = 20000;  // нет первого кусочка отве�
 const IDLE_MS = 60000;         // пауза посреди ответа дольше минуты — обрыв
 const isReasoning = model => /^(gpt-5|o\d|gemini-[3-9])/.test(model);
 
-// Причина ошибки OpenAI → что делать: перейти к следующей модели или сразу сообщить пользователю
+// Причина ошибки сервиса → что делать: перейти к следующей модели или сразу сообщить пользователю
 function classify(status, err) {
   const code = err?.code || err?.type || '';
   const text = `${code} ${err?.message || ''}`;
-  if (status === 401 || status === 403 || /API_KEY_INVALID|API key not valid|API_KEY/i.test(text)) {
+  if (status === 401 || status === 403 || /API_KEY_INVALID|API key not valid/i.test(text)) {
     return { fatal: new AIError('AI_AUTH', 502, 'Ошибка настройки AI на сервере') };
   }
   if (code === 'insufficient_quota' || /insufficient_quota|billing/i.test(text)) {
@@ -27,7 +27,43 @@ function classify(status, err) {
   return { fatal: new AIError('AI_UNAVAILABLE', 502, `Ошибка AI-провайдера (${status})`) };
 }
 
-export function createOpenAIProvider(config) {
+/* Разбор SSE: выдаёт JSON-события. Значение { timeout: true } — данных не было дольше waitMs().
+   Последняя строка может прийти без перевода строки, поэтому остаток буфера разбираем и в конце. */
+export async function* readSSE(body, waitMs) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  const parse = line => {
+    const t = line.trim();
+    if (!t.startsWith('data:')) return null;
+    const data = t.slice(5).trim();
+    if (data === '[DONE]') return null;
+    try { return JSON.parse(data); } catch { return null; }
+  };
+  let buf = '';
+  try {
+    for (;;) {
+      let timer;
+      const timeout = new Promise(r => { timer = setTimeout(() => r('timeout'), waitMs()); });
+      const step = await Promise.race([reader.read(), timeout]);
+      clearTimeout(timer);
+      if (step === 'timeout') { yield { timeout: true }; return; }
+      if (step.done) break;
+      buf += decoder.decode(step.value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const ev = parse(buf.slice(0, nl));
+        buf = buf.slice(nl + 1);
+        if (ev) yield ev;
+      }
+    }
+    const ev = parse(buf + decoder.decode());
+    if (ev) yield ev;
+  } finally {
+    reader.cancel().catch(() => {});
+  }
+}
+
+export function createCompatProvider(config) {
   const models = config.aiModels.map(m => m.id);
   const busyUntil = new Map(); // модель → время, до которого её пробуем последней (в памяти экземпляра)
   let effortRejected = false;  // сервис не знает reasoning_effort — больше не отправляем
@@ -38,7 +74,7 @@ export function createOpenAIProvider(config) {
       stream: true,
       stream_options: { include_usage: true },
       [config.tokenParam]: config.aiMaxTokens,
-      messages: [{ role: 'system', content: input.system }, ...input.messages],
+      messages: [{ role: 'system', content: input.system.map(b => b.text).join('\n\n') }, ...input.messages],
       ...(isReasoning(model) && !effortRejected && { reasoning_effort: config.aiEffort }),
     };
     // Таймаут — только на ожидание ответа сервера; сам поток может идти дольше (за паузами следит IDLE_MS)
@@ -69,13 +105,13 @@ export function createOpenAIProvider(config) {
         let res;
         try {
           res = await open(model, input, signal);
-          if (res.status === 400 && !effortRejected && isReasoning(model)) {
-            const text = await res.clone().text();
-            if (/reasoning_effort/i.test(text)) { effortRejected = true; res = await open(model, input, signal); }
+          if (res.status === 400 && !effortRejected && isReasoning(model) && /reasoning_effort/i.test(await res.clone().text())) {
+            effortRejected = true;
+            res = await open(model, input, signal);
           }
         } catch (e) {
           if (signal?.aborted) return;
-          last = e.name === 'TimeoutError' ? new AIError('AI_TIMEOUT', 504, 'AI не ответил вовремя, попробуйте ещё раз') : last;
+          if (e.name === 'TimeoutError') last = new AIError('AI_TIMEOUT', 504, 'AI не ответил вовремя, попробуйте ещё раз');
           busyUntil.set(model, Date.now() + BUSY_MS);
           continue;
         }
@@ -92,53 +128,38 @@ export function createOpenAIProvider(config) {
           continue;
         }
 
-        // Поток SSE: data: {...} … data: [DONE]
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = '', yielded = false, finish = null, refusal = false, usage = null, served = model;
+        let yielded = false, finish = null, refusal = false, usage = null, served = model;
         try {
-          for (;;) {
-            const wait = yielded ? IDLE_MS : FIRST_EVENT_MS;
-            const step = await Promise.race([reader.read(), new Promise(r => setTimeout(() => r('timeout'), wait))]);
-            if (step === 'timeout') {
-              reader.cancel().catch(() => {});
+          for await (const ev of readSSE(res.body, () => (yielded ? IDLE_MS : FIRST_EVENT_MS))) {
+            if (ev.timeout) {
               if (yielded) throw new AIError('AI_TIMEOUT', 504, 'Ответ AI оборвался, попробуйте ещё раз');
               console.warn(`${config.aiProvider} ${model}: нет ответа за ${FIRST_EVENT_MS} мс`);
               busyUntil.set(model, Date.now() + BUSY_MS);
               break;
             }
-            if (step.done) break;
-            buf += decoder.decode(step.value, { stream: true });
-            let nl;
-            while ((nl = buf.indexOf('\n')) >= 0) {
-              const line = buf.slice(0, nl).trim();
-              buf = buf.slice(nl + 1);
-              if (!line.startsWith('data:')) continue;
-              const data = line.slice(5).trim();
-              if (data === '[DONE]') continue;
-              let ev;
-              try { ev = JSON.parse(data); } catch { continue; }
-              if (ev.error) throw new AIError('AI_UNAVAILABLE', 502, 'Ошибка AI-провайдера во время ответа');
-              if (ev.model) served = ev.model;
-              if (ev.usage) usage = ev.usage;
-              const choice = ev.choices?.[0];
-              if (choice?.delta?.refusal) refusal = true;
-              if (choice?.finish_reason) finish = choice.finish_reason;
-              const text = choice?.delta?.content;
-              if (text) { yielded = true; yield { type: 'delta', text }; }
-            }
+            if (ev.error) throw new AIError('AI_UNAVAILABLE', 502, 'Ошибка AI-провайдера во время ответа');
+            if (ev.model) served = ev.model;
+            if (ev.usage) usage = ev.usage;
+            const choice = ev.choices?.[0];
+            if (choice?.delta?.refusal) refusal = true;
+            if (choice?.finish_reason) finish = choice.finish_reason;
+            const text = choice?.delta?.content;
+            if (text) { yielded = true; yield { type: 'delta', text }; }
           }
         } catch (e) {
           if (signal?.aborted) return;
           throw e instanceof AIError ? e : new AIError('AI_UNAVAILABLE', 502, 'Связь с AI прервалась');
         }
+        if (signal?.aborted) return;
         if (!yielded && !finish && !refusal) continue; // модель промолчала — следующая
 
         console.log(`AI: ${served}, stop=${finish}, in=${usage?.prompt_tokens}, cached=${usage?.prompt_tokens_details?.cached_tokens ?? 0}, out=${usage?.completion_tokens}`);
         if (refusal || finish === 'content_filter') {
           throw new AIError('AI_REFUSED', 422, 'AI не может помочь с этим запросом. Попробуйте переформулировать его.');
         }
-        yield { type: 'done', stopReason: finish === 'length' ? 'max_tokens' : 'end_turn' };
+        // Поток закончился без причины завершения или по лимиту длины — клиент покажет, что ответ неполный
+        const stopReason = finish === 'stop' ? 'end_turn' : finish === 'length' ? 'max_tokens' : 'incomplete';
+        yield { type: 'done', stopReason };
         return;
       }
       throw last;

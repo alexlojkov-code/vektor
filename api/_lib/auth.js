@@ -4,7 +4,7 @@
 import { scrypt, randomBytes, createHash, timingSafeEqual, randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 import { db } from './db.js';
-import { problem } from './server.js';
+import { problem, clientKey } from './server.js';
 
 const scryptAsync = promisify(scrypt);
 const COOKIE = 'vk_session';
@@ -18,9 +18,8 @@ export function normalizeEmail(raw) {
   const email = String(raw || '').trim().toLowerCase();
   return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
 }
-export function passwordError(raw) {
-  const p = String(raw || '');
-  if (p.length < 8) return 'Пароль — минимум 8 символов';
+export function passwordError(p) {
+  if (typeof p !== 'string' || p.length < 8) return 'Пароль — минимум 8 символов';
   if (p.length > 200) return 'Пароль слишком длинный';
   return null;
 }
@@ -114,13 +113,11 @@ export function requireDb(res) {
   problem(res, 503, 'ACCOUNTS_DISABLED', 'Аккаунты пока не подключены на сервере');
   return false;
 }
-// Защита от перебора паролей и кодов за 15 минут: до 10 попыток на одну почту
-// и до 30 с одного IP (за общим адресом офиса бывает несколько человек)
+// Защита от перебора за 15 минут: до 10 неудач на одну почту и до 30 с одного адреса.
+// Успешный вход не считается, поэтому нормальная работа и общий IP офиса лимит не тратят.
+const attemptKeys = (req, email) => [`rl:auth:ip:${clientKey(req)}`, ...(email ? [`rl:auth:email:${sha256(email)}`] : [])];
 export async function tooManyAttempts(req, email) {
-  const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'local').split(',')[0].trim();
-  const [byIp, byEmail] = await Promise.all([
-    db.hit(`rl:auth:ip:${ip}`, 15 * 60),
-    email ? db.hit(`rl:auth:email:${email}`, 15 * 60) : 0,
-  ]);
-  return byIp > 30 || byEmail > 10;
+  const [byIp, byEmail] = await Promise.all(attemptKeys(req, email).map(k => db.get(k)));
+  return Number(byIp) >= 30 || Number(byEmail) >= 10;
 }
+export const recordAttempt = (req, email) => Promise.all(attemptKeys(req, email).map(k => db.hit(k, 15 * 60)));

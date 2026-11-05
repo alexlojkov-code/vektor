@@ -17,7 +17,7 @@ export function taskRow(t) {
   const days = daysFromToday(t.dueDate);
   const overdue = t.status !== 'done' && days !== null && days < 0;
   const hasSource = t.source && getChat(t.source.chatId);
-  return `<li class="task${t.status === 'done' ? ' is-done' : ''}" data-id="${t.id}">
+  return `<li class="task${t.status === 'done' ? ' is-done' : ''}" data-id="${esc(t.id)}">
     <label class="task-check"><input type="checkbox" data-toggle ${t.status === 'done' ? 'checked' : ''} aria-label="Выполнено: ${esc(t.title)}"><span></span></label>
     <button class="task-body" type="button" data-edit>
       <span class="task-title">${esc(t.title)}</span>
@@ -216,7 +216,7 @@ function boardHTML(list) {
       <ul class="cards">${items.map(t => {
         const d = directionById(t.direction);
         const days = daysFromToday(t.dueDate);
-        return `<li class="kcard" data-id="${t.id}">
+        return `<li class="kcard" data-id="${esc(t.id)}">
           <button type="button" class="kcard-title" data-edit>${esc(t.title)}</button>
           <div class="task-meta">
             <span class="dot dot-${t.priority}" title="Приоритет: ${PRIORITIES[t.priority]}"></span>

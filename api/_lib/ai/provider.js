@@ -31,8 +31,8 @@ async function createProvider() {
   if (config.aiProvider === 'none') return createDisabledProvider('выключен в AI_PROVIDER');
   if (config.aiProvider === 'gemini' || config.aiProvider === 'openai') {
     if (!config.compatKey) return createDisabledProvider('ключ не задан');
-    const { createOpenAIProvider } = await import('./openai.js');
-    return createOpenAIProvider(config);
+    const { createCompatProvider } = await import('./compat.js');
+    return createCompatProvider(config);
   }
   if (!config.apiKey) return createDisabledProvider('ключ не задан');
 

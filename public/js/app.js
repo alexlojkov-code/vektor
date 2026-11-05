@@ -71,7 +71,7 @@ function renderSidebar(section, chatId) {
   list.innerHTML = state.chats.length
     ? state.chats.slice(0, 30).map(c => {
       const d = directionById(c.direction);
-      return `<li><a href="#/chat/${c.id}" class="chat-link"${c.id === chatId ? ' aria-current="page"' : ''}>
+      return `<li><a href="#/chat/${esc(c.id)}" class="chat-link"${c.id === chatId ? ' aria-current="page"' : ''}>
         <span class="dot" data-color="${d.color}"></span><span class="chat-link-title">${esc(c.title)}</span></a></li>`;
     }).join('')
     : '<li class="subtle chat-empty">Пока нет чатов</li>';
@@ -179,7 +179,7 @@ function renderToday() {
           <div class="card-head"><h2>Последние чаты</h2><a href="#/chat" class="subtle">Новый чат</a></div>
           ${state.chats.length ? `<ul class="recent">${state.chats.slice(0, 4).map(c => {
             const d = directionById(c.direction);
-            return `<li><a href="#/chat/${c.id}"><span class="mono" data-color="${d.color}">${esc(d.mono)}</span>
+            return `<li><a href="#/chat/${esc(c.id)}"><span class="mono" data-color="${d.color}">${esc(d.mono)}</span>
               <span><b>${esc(c.title)}</b><small>${esc(d.name)} · ${timeAgo(c.updatedAt)}</small></span></a></li>`;
           }).join('')}</ul>` : '<div class="empty"><p>Чатов пока нет. Начните с быстрого сценария ниже.</p></div>'}
         </section>

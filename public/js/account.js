@@ -3,7 +3,7 @@
 // отправляются на сервер через 2 с после изменения. Версия на сервере (rev) защищает от затирания.
 import { state, onChange, snapshot, replaceData, clearLocal } from './store.js';
 import { mergeData } from './merge.js';
-import { esc, icon, openModal, toast, confirmDialog } from './ui.js';
+import { esc, errorText, icon, openModal, toast, confirmDialog } from './ui.js';
 
 const META_KEY = 'pilot:sync'; // { rev, dirty, email }: что это устройство знает о версии на сервере
 const STATUS = {
@@ -128,7 +128,8 @@ addEventListener('online', () => account.user && pull());
 
 function signedOut() {
   account.user = null;
-  writeMeta({ rev: 0, email: null });
+  // Почту оставляем: если войдёт другой человек, данные этого аккаунта не попадут в его аккаунт
+  writeMeta({ rev: 0 });
   lastSynced = '';
   setStatus('idle');
   toast('Сессия завершена — войдите снова, чтобы синхронизировать данные');
@@ -136,12 +137,14 @@ function signedOut() {
 
 async function signedIn(user) {
   // Данные другого аккаунта с этого устройства не смешиваем с новым
-  if (meta.email && meta.email !== user.email) {
+  const other = meta.email && meta.email !== user.email;
+  if (other) {
     replaceData({});
     onRemote();
   }
   account.user = user;
-  writeMeta({ email: user.email, rev: 0, dirty: false });
+  // Тот же аккаунт после истёкшей сессии: неотправленные правки сохраняем
+  writeMeta({ email: user.email, rev: 0, dirty: !other && meta.dirty });
   lastSynced = '';
   await pull();
 }
@@ -238,7 +241,7 @@ function openAuth(mode) {
           if (r.body.recoveryCode) showRecoveryCode(r.body.recoveryCode, mode === 'register');
           else toast('Вы вошли — данные синхронизируются', { type: 'success' });
         } catch (err) {
-          error.textContent = err.message === 'Failed to fetch' ? 'Нет связи с сервером' : err.message;
+          error.textContent = errorText(err);
           error.hidden = false;
           submit.disabled = false;
           submit.textContent = f.submit;

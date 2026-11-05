@@ -1,35 +1,21 @@
 /* Дневные лимиты запросов к AI — как в Eatlas: вошедший пользователь, гость (по хэшу IP)
    и общий потолок сервиса, чтобы не выйти за бюджет. Сутки — по UTC. Неудачный запрос лимит не расходует.
    Счётчики — в Redis (общие для всех экземпляров функции); без Redis — в памяти экземпляра. */
-import { createHash } from 'node:crypto';
 import { config } from './config.js';
-import { db } from './db.js';
+import { db, counters as store } from './db.js';
 import { currentUser } from './auth.js';
-
-const memory = new Map(); // ключ → число (ключи с датой, старые дни отбрасываем)
-const store = db.enabled ? db : {
-  get: async key => memory.get(key) ?? null,
-  async hit(key) {
-    for (const k of memory.keys()) if (!k.endsWith(today())) memory.delete(k);
-    const n = (memory.get(key) || 0) + 1;
-    memory.set(key, n);
-    return n;
-  },
-  decr: async key => { if (memory.has(key)) memory.set(key, memory.get(key) - 1); },
-};
+import { clientKey } from './server.js';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const untilMidnight = () => {
   const d = new Date();
   return Math.ceil((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1) - d) / 1000) + 60;
 };
-const clientIp = req => String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'local').split(',')[0].trim();
 
 async function subjectOf(req) {
   const user = db.enabled ? await currentUser(req) : null;
   if (user) return { key: `ai:u:${user.id}:${today()}`, limit: config.aiDailyLimitUser, guest: false };
-  const ip = createHash('sha256').update(`vektor-ai:${clientIp(req)}`).digest('hex').slice(0, 32);
-  return { key: `ai:ip:${ip}:${today()}`, limit: config.aiDailyLimitGuest, guest: true };
+  return { key: `ai:ip:${clientKey(req)}:${today()}`, limit: config.aiDailyLimitGuest, guest: true };
 }
 
 // Сколько осталось сегодня — для /api/ai/status
