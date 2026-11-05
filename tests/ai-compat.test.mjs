@@ -23,6 +23,7 @@ const server = createServer((req, res) => {
     if (body.model === 'badkey') return fail(401, 'invalid_api_key');
     // Gemini: неверный ключ — 400 и ошибка массивом
     if (body.model === 'gemini-badkey') { res.writeHead(400, { 'content-type': 'application/json' }); return res.end(JSON.stringify([{ error: { code: 400, message: 'API key not valid. Please pass a valid API key.', status: 'INVALID_ARGUMENT' } }])); }
+    if (body.model === 'gemini-quota') return fail(429, 429, 'You exceeded your current quota, please check your plan and billing details.');
     if (body.model === 'gemini-free0') return fail(429, 'RESOURCE_EXHAUSTED', 'Quota exceeded for metric generate_content_free_tier_requests, limit: 0');
     if (body.model === 'broke') return fail(429, 'insufficient_quota', 'You exceeded your current quota');
     if (body.model === 'gpt-5-noeffort' && body.reasoning_effort) return fail(400, 'unsupported_parameter', 'Unsupported parameter: reasoning_effort');
@@ -153,6 +154,11 @@ test('ошибка 503 посреди потока: ответ начинает�
 
 test('ошибка посреди потока на всех попытках: текст последней попытки с пометкой о неполном ответе', async () => {
   assert.deepEqual(await run(provider('mid-error')), { text: 'начало ответа', done: 'incomplete' });
+});
+
+test('обычный лимит Google с упоминанием billing — следующая модель, а не «нет средств»', async () => {
+  assert.equal((await run(gemini(['gemini-quota', 'gemini-3.6-flash']))).text, 'Привет, маркетолог!');
+  await assert.rejects(run(gemini(['gemini-quota'])), { code: 'AI_RATE_LIMIT' });
 });
 
 test('новые попытки не начинаются после исчерпания времени', async () => {

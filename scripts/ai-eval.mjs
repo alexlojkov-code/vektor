@@ -55,6 +55,7 @@ function judge({ text = '', stop, error }, rule) {
 
 let failed = 0;
 for (const [name, direction, question, rule] of CASES) {
+  await new Promise(r => setTimeout(r, 15000)); // не упираться в лимит ключа в минуту
   const result = await ask(direction, question);
   const problems = judge(result, rule);
   if (problems.length) failed++;

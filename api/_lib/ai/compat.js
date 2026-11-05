@@ -23,7 +23,8 @@ function classify(status, err) {
   if (status === 401 || status === 403 || /API_KEY_INVALID|API key not valid/i.test(text)) {
     return { fatal: new AIError('AI_AUTH', 502, 'Ошибка настройки AI на сервере') };
   }
-  if (code === 'insufficient_quota' || /insufficient_quota|billing/i.test(text)) {
+  // Только точный код OpenAI: обычный лимит Google (429) тоже упоминает billing, это не пустой баланс
+  if (code === 'insufficient_quota') {
     return { fatal: new AIError('AI_QUOTA', 502, 'На балансе AI-сервиса закончились средства. Задачи и калькулятор работают.') };
   }
   // У Google лимиты считаются по каждой модели: исчерпан дневной или модель недоступна на тарифе — откладываем на час
