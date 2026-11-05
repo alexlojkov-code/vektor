@@ -151,8 +151,8 @@ test('ошибка 503 посреди потока: ответ начинает�
   assert.deepEqual(seen.map(x => x.model), ['mid-error', 'gpt-5.4-nano']);
 });
 
-test('ошибка посреди потока на всех моделях — понятная ошибка, а не обрезанный текст', async () => {
-  await assert.rejects(run(provider('mid-error')), { code: 'AI_RATE_LIMIT' });
+test('ошибка посреди потока на всех попытках: текст последней попытки с пометкой о неполном ответе', async () => {
+  assert.deepEqual(await run(provider('mid-error')), { text: 'начало ответа', done: 'incomplete' });
 });
 
 test('новые попытки не начинаются после исчерпания времени', async () => {
