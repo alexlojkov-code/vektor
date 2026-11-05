@@ -88,6 +88,7 @@ async function generate(chat) {
         // Остаток лимита на сегодня — для подсказки при следующем открытии чата
         statusPromise = aiStatus().then(s => (s.quota ? { ...s, quota: { ...s.quota, remaining: ev.remaining, used: s.quota.limit - ev.remaining } } : s));
       }
+      if (ev.type === 'reset') message.content = ''; // обрыв на стороне AI: сервер начал ответ заново
       if (ev.type === 'delta') { message.content += ev.text; paint(chat, message); }
       if (ev.type === 'done' && ev.stopReason !== 'end_turn') message.incomplete = true;
       if (ev.type === 'error') throw new Error(ev.detail || 'Ошибка AI');

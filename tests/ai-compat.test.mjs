@@ -50,12 +50,13 @@ after(() => server.close());
 const provider = (aiModel, fallbacks = [], extra = {}) => createCompatProvider({
   aiProvider: 'openai', compatKey: 'test-key', compatBaseUrl: base, tokenParam: 'max_completion_tokens',
   aiModel, aiModels: [aiModel, ...fallbacks].map(id => ({ id, label: id })),
-  aiMaxTokens: 1000, aiTimeoutMs: 5000, aiEffort: 'low', ...extra,
+  aiMaxTokens: 1000, aiTimeoutMs: 5000, aiEffort: 'low', aiRetryPauseMs: 1, ...extra,
 });
 const gemini = (models, extra) => provider(models[0], models.slice(1), { aiProvider: 'gemini', tokenParam: 'max_tokens', ...extra });
 async function run(p, model) {
   let text = '', done = null;
   for await (const ev of p.chat({ system: [{ text: 'Ты — Вектор' }, { text: 'Направление' }], messages: [{ role: 'user', content: 'Привет' }], model }, { signal: new AbortController().signal })) {
+    if (ev.type === 'reset') text = '';
     if (ev.type === 'delta') text += ev.text;
     if (ev.type === 'done') done = ev.stopReason;
   }
@@ -133,7 +134,30 @@ test('последний кусок ответа без перевода стр�
   assert.deepEqual(await run(provider('no-newline')), { text: 'начало и конец', done: 'end_turn' });
 });
 
-test('поток без причины завершения помечается как неполный', async () => {
+test('оборванный ответ начинается заново на другой модели', async () => {
+  seen.length = 0;
+  assert.deepEqual(await run(provider('cut-off', ['gpt-5.4-nano'])), { text: 'Привет, маркетолог!', done: 'end_turn' });
+  assert.deepEqual(seen.map(x => x.model), ['cut-off', 'gpt-5.4-nano']);
+});
+
+test('все модели заняты: второй круг после паузы', async () => {
+  let calls = 0;
+  const flaky = createServer((req, res) => {
+    req.resume();
+    req.on('end', () => {
+      if (++calls === 1) { res.writeHead(503, { 'content-type': 'application/json' }); return res.end('{"error":{"code":503,"message":"high demand"}}'); }
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.end(`data: ${JSON.stringify({ choices: [{ delta: { content: 'готово' }, finish_reason: 'stop' }] })}\n\n`);
+    });
+  });
+  await new Promise(r => flaky.listen(0, '127.0.0.1', r));
+  const r = await run(provider('m1', [], { compatBaseUrl: `http://127.0.0.1:${flaky.address().port}` }));
+  flaky.close();
+  assert.equal(calls, 2);
+  assert.deepEqual(r, { text: 'готово', done: 'end_turn' });
+});
+
+test('поток без причины завершения после всех попыток помечается как неполный', async () => {
   assert.deepEqual(await run(provider('cut-off')), { text: 'обрыв на полу', done: 'incomplete' });
 });
 

@@ -2,13 +2,16 @@
    (generativelanguage.googleapis.com/v1beta/openai, ключ GEMINI_API_KEY) и OpenAI (OPENAI_API_KEY).
    Модель выбирает пользователь из списка config.aiModels; остальные из списка — запасные.
    Как в Eatlas: если модель перегружена (429/5xx), недоступна ключу (404)
-   или молчит в потоке — сразу пробуем следующую; занятые модели на время откладываем. */
+   или молчит в потоке — сразу пробуем следующую; занятые модели на время откладываем.
+   Под нагрузкой Google обрывает поток без причины завершения: такой ответ начинаем заново
+   (событие reset — клиент очищает текст). Когда заняты все модели, после паузы делаем ещё один круг. */
 import { AIError } from './provider.js';
 
 const BUSY_MS = 3 * 60 * 1000;
 const MISSING_MS = 60 * 60 * 1000;
 const FIRST_EVENT_MS = 20000;  // нет первого кусочка ответа — модель считаем занятой
 const IDLE_MS = 60000;         // пауза посреди ответа дольше минуты — обрыв
+const RETRY_PAUSE_MS = 2000;   // пауза перед вторым кругом по моделям
 const isReasoning = model => /^(gpt-5|o\d|gemini-[3-9])/.test(model);
 
 // Причина ошибки сервиса → что делать: перейти к следующей модели или сразу сообщить пользователю
@@ -101,7 +104,13 @@ export function createCompatProvider(config) {
       const order = [...all.filter(m => !(busyUntil.get(m) > now)), ...all.filter(m => busyUntil.get(m) > now)];
       let last = new AIError('AI_UNAVAILABLE', 502, 'Не удалось связаться с AI');
 
-      for (const model of order) {
+      const attempts = [...order, ...order]; // два круга
+      for (let i = 0; i < attempts.length; i++) {
+        const model = attempts[i];
+        if (i === order.length) {
+          await new Promise(r => setTimeout(r, config.aiRetryPauseMs ?? RETRY_PAUSE_MS));
+          if (signal?.aborted) return;
+        }
         let res;
         try {
           res = await open(model, input, signal);
@@ -157,9 +166,13 @@ export function createCompatProvider(config) {
         if (refusal || finish === 'content_filter') {
           throw new AIError('AI_REFUSED', 422, 'AI не может помочь с этим запросом. Попробуйте переформулировать его.');
         }
-        // Поток закончился без причины завершения или по лимиту длины — клиент покажет, что ответ неполный
-        const stopReason = finish === 'stop' ? 'end_turn' : finish === 'length' ? 'max_tokens' : 'incomplete';
-        yield { type: 'done', stopReason };
+        // Поток оборвался без причины завершения: начинаем заново, а если попыток не осталось — честно помечаем
+        if (!finish && i < attempts.length - 1) {
+          busyUntil.set(model, Date.now() + BUSY_MS);
+          yield { type: 'reset' };
+          continue;
+        }
+        yield { type: 'done', stopReason: finish === 'stop' ? 'end_turn' : finish === 'length' ? 'max_tokens' : 'incomplete' };
         return;
       }
       throw last;

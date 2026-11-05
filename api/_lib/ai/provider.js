@@ -6,7 +6,8 @@
 //   enabled: boolean;
 //   model?: string;
 //   reason?: string;          // почему выключен
-//   // Асинхронный генератор: { type: 'delta', text } … { type: 'done', stopReason }
+//   // Асинхронный генератор: { type: 'delta', text } … { type: 'done', stopReason };
+//   // { type: 'reset' } — начатый ответ отменён, текст начнётся заново
 //   chat(input: { system, messages, direction, model? }, opts: { signal }): AsyncGenerator<ChatEvent>;
 // }
 
