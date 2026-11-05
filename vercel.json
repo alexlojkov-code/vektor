@@ -63,5 +63,18 @@
         }
       ]
     }
+  ],
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "marketing-pilot-five.vercel.app"
+        }
+      ],
+      "destination": "https://vektor-ai-marketing.vercel.app/$1",
+      "permanent": true
+    }
   ]
 }
