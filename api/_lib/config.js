@@ -67,7 +67,9 @@ export const config = Object.freeze({
   aiModels: models.map(id => ({ id, label: LABELS[id] || id })),
   aiEffort: readEffort(compat ? 'low' : 'medium'),
   aiMaxTokens: readInt('AI_MAX_TOKENS', compat ? 16000 : 64000),
-  aiTimeoutMs: readInt('AI_TIMEOUT_MS', 120000),
+  // Ожидание ответа сервиса (до первых байтов). Для Gemini/OpenAI коротко, как в Eatlas: зависшую модель
+  // лучше бросить и попробовать запасную, чем держать пользователя минутами
+  aiTimeoutMs: readInt('AI_TIMEOUT_MS', compat ? 25000 : 120000),
   // Дневные лимиты запросов к AI (сутки по UTC), как в Eatlas
   aiDailyLimitUser: readInt('AI_DAILY_LIMIT_USER', 50),
   aiDailyLimitGuest: readInt('AI_DAILY_LIMIT_GUEST', 15),

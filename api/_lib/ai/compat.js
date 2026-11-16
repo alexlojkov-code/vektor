@@ -130,6 +130,7 @@ export function createCompatProvider(config) {
           }
         } catch (e) {
           if (signal?.aborted) return;
+          console.warn(`${config.aiProvider} ${model}: ${e.name === 'TimeoutError' ? `нет ответа за ${config.aiTimeoutMs} мс` : `ошибка сети ${e.message}`}`);
           if (e.name === 'TimeoutError') last = new AIError('AI_TIMEOUT', 504, 'AI не ответил вовремя, попробуйте ещё раз');
           busyUntil.set(model, Date.now() + BUSY_MS);
           continue;
