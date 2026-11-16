@@ -159,8 +159,10 @@ html[data-glass] .toast-success { border-color: color-mix(in srgb, var(--good) 6
 /* Экран «Новый чат»: поле ввода прилипает к низу, контент под ним гаснет, а не наезжает на подсказку */
 html[data-glass] .chat-home .composer-wrap {
   margin: 0 -12px; padding: 24px 12px 10px;
-  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--bg) 82%, transparent) 45%);
+  /* Под строкой с подсказкой фон сплошной: полупрозрачный пропускал текст кнопок направлений */
+  background: linear-gradient(to bottom, transparent, var(--bg) 40%);
 }
 @media (max-width: 1023px) {
-  html[data-glass] .chat-home .composer-wrap { bottom: calc(80px + env(safe-area-inset-bottom)); }
+  /* Подложка доходит до нижнего меню, чтобы между ними не просвечивал контент */
+  html[data-glass] .chat-home .composer-wrap { bottom: calc(66px + env(safe-area-inset-bottom)); padding-bottom: 24px; }
 }
