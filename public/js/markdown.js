@@ -1,5 +1,5 @@
 // Минимальный безопасный Markdown → HTML. Сначала экранируем весь текст, затем размечаем.
-// Поддержка: заголовки, абзацы, списки, таблицы, цитаты, код, жирный, курсив, ссылки http(s).
+// Поддержка: заголовки, абзацы, списки (в том числе через тире «—»), таблицы, цитаты, код, жирный, курсив, ссылки http(s).
 import { esc } from './ui.js';
 
 function inline(text) {
@@ -50,13 +50,13 @@ export function renderMarkdown(src) {
       out.push(`<blockquote>${inline(buf.join(' '))}</blockquote>`);
       continue;
     }
-    if (/^\s*([-*•]|\d+[.)])\s+/.test(line)) {
+    if (/^\s*([-*•—–]|\d+[.)])\s+/.test(line)) {
       const ordered = /^\s*\d+[.)]/.test(line);
       const items = [];
-      while (i < lines.length && /^\s*([-*•]|\d+[.)])\s+/.test(lines[i])) {
-        items.push(lines[i].replace(/^\s*([-*•]|\d+[.)])\s+/, ''));
+      while (i < lines.length && /^\s*([-*•—–]|\d+[.)])\s+/.test(lines[i])) {
+        items.push(lines[i].replace(/^\s*([-*•—–]|\d+[.)])\s+/, ''));
         i++;
-        while (i < lines.length && /^\s{2,}\S/.test(lines[i]) && !/^\s*([-*•]|\d+[.)])\s+/.test(lines[i])) items[items.length - 1] += ' ' + lines[i++].trim();
+        while (i < lines.length && /^\s{2,}\S/.test(lines[i]) && !/^\s*([-*•—–]|\d+[.)])\s+/.test(lines[i])) items[items.length - 1] += ' ' + lines[i++].trim();
       }
       const tag = ordered ? 'ol' : 'ul';
       out.push(`<${tag}>${items.map(t => `<li>${inline(t)}</li>`).join('')}</${tag}>`);
@@ -65,7 +65,7 @@ export function renderMarkdown(src) {
     if (!line.trim()) { i++; continue; }
     const buf = [line];
     i++;
-    while (i < lines.length && lines[i].trim() && !/^(#{1,4}\s|```|>|\s*([-*•]|\d+[.)])\s+)/.test(lines[i]) && !(lines[i].includes('|') && isTableSep(lines[i + 1] || ''))) buf.push(lines[i++]);
+    while (i < lines.length && lines[i].trim() && !/^(#{1,4}\s|```|>|\s*([-*•—–]|\d+[.)])\s+)/.test(lines[i]) && !(lines[i].includes('|') && isTableSep(lines[i + 1] || ''))) buf.push(lines[i++]);
     out.push(`<p>${buf.map(inline).join('<br>')}</p>`);
   }
   return out.join('');
@@ -76,7 +76,7 @@ const plain = s => s.replace(/\*\*|__|`/g, '').replace(/\[([^\]]+)\]\([^)]+\)/g,
 // Пункты для «В задачи»: раздел «Следующие шаги», иначе — последний список в ответе.
 export function extractSteps(src) {
   const lines = String(src).replace(/\r\n?/g, '\n').split('\n');
-  const item = /^\s*([-*•]|\d+[.)])\s+(.*)$/;
+  const item = /^\s*([-*•—–]|\d+[.)])\s+(.*)$/;
   let start = lines.findIndex(l => /^#{1,4}\s+.*следующие шаги/i.test(l));
   let block = [];
   if (start >= 0) {

@@ -109,3 +109,10 @@ test('валюта: подпись и формат денежных значен
   assert.equal(unitLabel(MONEY), '$');
   setCurrency('uzs');
 });
+
+test('шаги для задач: список через русское тире распознаётся', async () => {
+  const { extractSteps, renderMarkdown } = await import('../public/js/markdown.js');
+  const answer = 'План:\n— 6 млн сум: посевы в Telegram\n— 3 млн сум: дегустация\n\nKPI: 20 публикаций';
+  assert.deepEqual(extractSteps(answer), ['6 млн сум: посевы в Telegram', '3 млн сум: дегустация']);
+  assert.ok(renderMarkdown(answer).includes('<ul><li>6 млн сум'));
+});
