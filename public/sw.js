@@ -3,7 +3,7 @@
    а копия в кэше нужна, когда сети нет или она отвечает дольше 4 секунд.
    /api/* и чужие домены не трогаем: AI, вход и синхронизация всегда идут в сеть.
    При изменении списка SHELL поднимите номер версии в CACHE. */
-const CACHE = 'vektor-v1';
+const CACHE = 'vektor-v2';
 const TIMEOUT_MS = 4000;
 const SHELL = [
   '/app.html',
@@ -37,15 +37,24 @@ self.addEventListener('fetch', event => {
 
 async function networkFirst(event, req) {
   const cache = await caches.open(CACHE);
-  const network = fetch(req).then(res => {
-    if (res.ok && res.type === 'basic') cache.put(req, res.clone());
+  let servedCopy = null; // копия, отданная из-за медленной сети
+  const network = fetch(req).then(async res => {
+    if (res.ok && res.type === 'basic') {
+      await cache.put(req, res.clone());
+      // Страница уже показана из старой копии, а на сервере новая версия — предлагаем обновить
+      const changed = servedCopy && (res.headers.get('etag') || '') !== (servedCopy.headers.get('etag') || '');
+      if (changed && req.mode === 'navigate') {
+        const client = await self.clients.get(event.resultingClientId || event.clientId);
+        client?.postMessage({ type: 'vektor-updated' });
+      }
+    }
     return res;
   });
   event.waitUntil(network.catch(() => {})); // ответ сети обновит кэш, даже если отдали копию
   const fromCache = () => cache.match(req, { ignoreSearch: req.mode === 'navigate' });
 
   // Сеть не ответила вовремя — отдаём копию, если она есть, иначе продолжаем ждать сеть
-  const slow = new Promise(resolve => setTimeout(resolve, TIMEOUT_MS)).then(fromCache);
+  const slow = new Promise(resolve => setTimeout(resolve, TIMEOUT_MS)).then(fromCache).then(hit => (servedCopy = hit));
   try {
     const first = await Promise.race([network, slow.then(hit => hit || network)]);
     if (first) return first;

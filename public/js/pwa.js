@@ -16,6 +16,10 @@ const notify = () => listeners.forEach(fn => fn());
 
 if ('serviceWorker' in navigator) {
   addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(err => console.warn('Service worker не зарегистрирован', err)));
+  // Сеть была медленной и страница открылась из сохранённой копии, а на сервере уже новая версия
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data?.type === 'vektor-updated') toast('Вышла новая версия Вектора', { action: 'Обновить', onAction: () => location.reload(), duration: 15000 });
+  });
 }
 addEventListener('beforeinstallprompt', e => {
   e.preventDefault(); // своё приглашение вместо стандартной плашки браузера

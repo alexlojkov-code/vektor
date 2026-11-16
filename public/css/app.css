@@ -184,6 +184,7 @@ main { outline: none; }
 .composer-input::placeholder { color: var(--text-3); }
 .composer-send { width: 44px; min-height: 44px; padding: 0; border-radius: 50%; flex: none; }
 .composer-hint { margin-top: 8px; text-align: center; font-size: 12px; }
+@media (hover: none) and (pointer: coarse) { .hint-keys { display: none; } }
 
 /* ---------- Диалог ---------- */
 .chat { display: grid; grid-template-rows: auto auto 1fr auto; height: 100dvh; width: min(900px, 100%); margin: 0 auto; padding: 0 24px; }

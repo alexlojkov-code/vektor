@@ -179,14 +179,18 @@ function refresh(chat) {
 }
 
 /* ---------- Поле ввода ---------- */
-function composerHTML(placeholder = 'Опишите задачу или выберите сценарий…') {
+// Сенсорный экран без мыши: Enter на клавиатуре телефона — новая строка, отправка — кнопкой
+const touchMQ = matchMedia('(hover: none) and (pointer: coarse)');
+const narrowMQ = matchMedia('(max-width: 600px)');
+
+function composerHTML(placeholder = narrowMQ.matches ? 'Опишите задачу…' : 'Опишите задачу или выберите сценарий…') {
   return `<form class="composer" data-composer>
     <label class="sr-only" for="prompt">Сообщение</label>
-    <textarea id="prompt" class="composer-input" rows="1" maxlength="${MAX_MESSAGE}" placeholder="${esc(placeholder)}"></textarea>
+    <textarea id="prompt" class="composer-input" rows="1" maxlength="${MAX_MESSAGE}" placeholder="${esc(placeholder)}" enterkeyhint="${touchMQ.matches ? 'enter' : 'send'}"></textarea>
     <button class="btn btn-primary composer-send" type="submit" data-send aria-label="Отправить">${icon('send')}</button>
     <button class="btn btn-dark composer-send" type="button" data-stop hidden aria-label="Остановить генерацию">${icon('stop')}</button>
   </form>
-  <p class="composer-hint subtle">Enter — отправить, Shift+Enter — новая строка. Не вводите персональные данные клиентов. <a href="privacy.html" target="_blank" rel="noopener">Конфиденциальность</a></p>`;
+  <p class="composer-hint subtle"><span class="hint-keys">Enter — отправить, Shift+Enter — новая строка. </span>Не вводите персональные данные клиентов. <a href="privacy.html" target="_blank" rel="noopener">Конфиденциальность</a></p>`;
 }
 
 function bindComposer(root, onSend, onStop) {
@@ -195,7 +199,7 @@ function bindComposer(root, onSend, onStop) {
   const fit = () => { ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, 8 * 24 + 24)}px`; };
   ta.addEventListener('input', fit);
   ta.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit(); }
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !touchMQ.matches) { e.preventDefault(); form.requestSubmit(); }
   });
   form.addEventListener('submit', e => {
     e.preventDefault();

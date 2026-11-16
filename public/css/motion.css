@@ -85,12 +85,10 @@
 @media (max-width: 760px) {
   .obj-hero-l { width: 130px; left: -50px; top: 470px; }
   .obj-hero-r { width: 140px; right: -44px; top: 70px; }
-  .obj-features, .obj-directions { width: 160px; }
-  .obj-features { width: 140px; right: -36px; top: -60px; }
-  .obj-directions { left: -50px; top: -10px; }
-  .obj-calc { width: 150px; right: -40px; top: 0; }
+  /* Узкий экран: заголовки во всю ширину, поэтому объекты маленькие и в верхнем отступе секции */
+  .obj-features { width: 92px; right: -4px; top: -44px; }
+  .obj-directions, .obj-calc, .obj-cta-r { width: 92px; left: auto; right: -4px; top: -14px; }
   .obj-cta-l { display: none; }
-  .obj-cta-r { width: 160px; right: -46px; top: -40px; }
 }
 
 /* ---------- Появление блоков при прокрутке (класс .is-in ставит JS один раз) ---------- */
@@ -149,18 +147,21 @@
 .ticker-band-b { background: #1E1630; border-block: 1px solid rgba(189, 173, 206, .12); transform: rotate(1.6deg); margin-top: -14px; }
 .ticker-track { display: flex; flex: none; align-items: center; }
 .ticker-item-group { display: flex; flex: none; }
+@media (max-width: 600px) { .ticker-item { font-size: 18px !important; } }
 .ticker-item { display: inline-flex; align-items: center; gap: 28px; padding-right: 28px; color: #fff; font-size: clamp(20px, 2.6vw, 34px); font-weight: 700; letter-spacing: -.02em; white-space: nowrap; }
 .ticker-band-b .ticker-item { color: var(--lavender); font-weight: 600; }
 .ticker-sep { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, .55); flex: none; }
 .ticker-band-b .ticker-sep { background: var(--accent); }
 @media (prefers-reduced-motion: no-preference) {
-  .ticker-track { animation: ticker 55s linear infinite; }
-  .ticker-reverse { animation-duration: 70s; animation-direction: reverse; }
+  /* Двигаем каждую из двух одинаковых половин, а не всю дорожку: слой вдвое уже,
+     iOS Safari не отрисовывает слишком широкие движущиеся слои, и лента оставалась пустой */
+  .ticker-item-group { animation: ticker 55s linear infinite; }
+  .ticker-reverse .ticker-item-group { animation-duration: 70s; animation-direction: reverse; }
 }
 @media (hover: hover) and (pointer: fine) {
-  .ticker-band:hover .ticker-track { animation-play-state: paused; }
+  .ticker-band:hover .ticker-item-group { animation-play-state: paused; }
 }
-@keyframes ticker { to { transform: translateX(-50%); } }
+@keyframes ticker { to { transform: translateX(-100%); } }
 
 /* ---------- Карточки направлений ---------- */
 .dir-card { position: relative; overflow: hidden; }
