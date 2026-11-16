@@ -28,7 +28,7 @@ export function taskRow(t) {
         ${t.dueDate ? `<span class="due${overdue ? ' overdue' : ''}">${formatDue(t.dueDate)}</span>` : ''}
       </span>
     </button>
-    ${hasSource ? `<a class="btn btn-icon" href="#/chat/${t.source.chatId}" title="Открыть чат, из которого создана задача" aria-label="Открыть исходный чат">${icon('link')}</a>` : ''}
+    ${hasSource ? `<a class="btn btn-icon" href="#/chat/${esc(t.source.chatId)}" title="Открыть чат, из которого создана задача" aria-label="Открыть исходный чат">${icon('link')}</a>` : ''}
     <button class="btn btn-icon task-del" type="button" data-del title="Удалить" aria-label="Удалить задачу">${icon('trash')}</button>
   </li>`;
 }
@@ -140,7 +140,7 @@ export function renderTasks(main, query) {
       </header>
       <form class="quick-add card" data-quick>
         <label class="sr-only" for="quick-title">Новая задача</label>
-        <input id="quick-title" class="input" maxlength="200" placeholder="Новая задача — Enter, чтобы добавить" autocomplete="off">
+        <input id="quick-title" class="input" maxlength="200" placeholder="${matchMedia('(hover: none) and (pointer: coarse)').matches ? 'Новая задача' : 'Новая задача — Enter, чтобы добавить'}" autocomplete="off">
         <button class="btn btn-primary" type="submit">${icon('plus')}<span>Добавить</span></button>
       </form>
       <div class="filters">

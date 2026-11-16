@@ -10,6 +10,9 @@ const MAX_MESSAGE = 8000;
 
 /* ---------- Статус AI ---------- */
 let statusPromise;
+// После входа или выхода лимит другой (пользователь или гость) — статус нужно запросить заново
+export const refreshAiStatus = () => { statusPromise = null; };
+
 export function aiStatus() {
   statusPromise ||= fetch('/api/ai/status').then(r => r.json()).catch(() => ({ enabled: false, provider: 'none', reason: 'сервер недоступен' }));
   return statusPromise;

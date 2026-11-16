@@ -3,6 +3,7 @@
 // отправляются на сервер через 2 с после изменения. Версия на сервере (rev) защищает от затирания.
 import { state, onChange, snapshot, replaceData, clearLocal } from './store.js';
 import { mergeData } from './merge.js';
+import { refreshAiStatus } from './chat.js';
 import { esc, errorText, icon, openModal, toast, confirmDialog } from './ui.js';
 
 const META_KEY = 'pilot:sync'; // { rev, dirty, email }: что это устройство знает о версии на сервере
@@ -128,6 +129,7 @@ addEventListener('online', () => account.user && pull());
 
 function signedOut() {
   account.user = null;
+  refreshAiStatus();
   // Почту оставляем: если войдёт другой человек, данные этого аккаунта не попадут в его аккаунт
   writeMeta({ rev: 0 });
   lastSynced = '';
@@ -143,6 +145,7 @@ async function signedIn(user) {
     onRemote();
   }
   account.user = user;
+  refreshAiStatus();
   // Тот же аккаунт после истёкшей сессии: неотправленные правки сохраняем
   writeMeta({ email: user.email, rev: 0, dirty: !other && meta.dirty });
   lastSynced = '';
@@ -318,6 +321,7 @@ function openProfile() {
         if (!r.ok) { error.textContent = r.body.detail || 'Не получилось удалить аккаунт'; error.hidden = false; return; }
         close();
         account.user = null;
+        refreshAiStatus();
         writeMeta({ rev: 0, email: null, dirty: false });
         setStatus('idle');
         toast('Аккаунт удалён. Данные на этом устройстве сохранены', { type: 'success' });
