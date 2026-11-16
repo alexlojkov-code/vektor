@@ -186,7 +186,7 @@ function composerHTML(placeholder = 'Опишите задачу или выбе
     <button class="btn btn-primary composer-send" type="submit" data-send aria-label="Отправить">${icon('send')}</button>
     <button class="btn btn-dark composer-send" type="button" data-stop hidden aria-label="Остановить генерацию">${icon('stop')}</button>
   </form>
-  <p class="composer-hint subtle">Enter — отправить, Shift+Enter — новая строка. Не вводите персональные данные клиентов.</p>`;
+  <p class="composer-hint subtle">Enter — отправить, Shift+Enter — новая строка. Не вводите персональные данные клиентов. <a href="privacy.html" target="_blank" rel="noopener">Конфиденциальность</a></p>`;
 }
 
 function bindComposer(root, onSend, onStop) {

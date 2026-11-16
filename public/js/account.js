@@ -217,6 +217,7 @@ function openAuth(mode) {
         ${mode === 'login' ? '<button class="btn-link" type="button" data-mode="reset">Забыли пароль?</button>' : ''}
         ${mode === 'reset' ? '<button class="btn-link" type="button" data-mode="login">Вспомнил пароль</button>' : ''}
       </form>
+      <p class="subtle">Входя или регистрируясь, вы соглашаетесь с <a href="privacy.html" target="_blank" rel="noopener">политикой конфиденциальности</a>.</p>
       <p class="subtle">${local ? `Чаты (${state.chats.length}), задачи (${state.tasks.length}) и профиль бренда с этого устройства сохранятся в аккаунте.` : 'Чаты, задачи и профиль бренда будут доступны на всех ваших устройствах.'}</p>`,
     onMount(modal, close) {
       modal.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
