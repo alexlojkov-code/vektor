@@ -44,7 +44,9 @@
     <nav class="side-nav" id="side-nav"></nav>
     <div class="side-section">
       <p class="side-label">Недавние чаты</p>
-      <ul class="chat-list" id="chat-list"></ul>
+      <label class="search chat-search" id="chat-search-wrap" hidden><span class="sr-only">Поиск по чатам</span>
+        <input class="input" type="search" id="chat-search" placeholder="Найти чат" autocomplete="off" aria-controls="chat-list"></label>
+      <ul class="chat-list" id="chat-list" aria-live="polite"></ul>
     </div>
     <div class="side-foot">
       <button class="account-btn" id="account-btn" type="button" hidden></button>

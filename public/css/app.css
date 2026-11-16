@@ -353,3 +353,7 @@ main { outline: none; }
 /* Направление и модель AI под заголовком чата */
 .chat-selects { display: flex; align-items: center; gap: 4px 14px; flex-wrap: wrap; }
 .chat-model { max-width: 100%; }
+
+/* Поиск по чатам в боковой панели */
+.chat-search { display: block; margin: 0 4px 8px; }
+.chat-search .input { min-height: 36px; }

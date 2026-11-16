@@ -67,16 +67,33 @@ function renderSidebar(section, chatId) {
     `<a href="${n.href}" class="side-link"${n.id === section ? ' aria-current="page"' : ''}>${icon(n.icon)}<span>${n.label}</span></a>`).join('');
   document.getElementById('tabbar').innerHTML = NAV.slice(0, 4).map(n =>
     `<a href="${n.href}"${n.id === section ? ' aria-current="page"' : ''}>${icon(n.icon)}<span>${n.label === 'AI-чат' ? 'Чат' : n.label}</span></a>`).join('');
+  renderChatList(chatId);
+}
+
+/* ---------- Список чатов с поиском (CH-6): по названию и тексту сообщений, среди всех чатов ---------- */
+const chatSearch = document.getElementById('chat-search');
+const normalize = s => String(s).toLowerCase().replace(/ё/g, 'е');
+let listChatId = null;
+
+function renderChatList(chatId = listChatId) {
+  listChatId = chatId;
   const list = document.getElementById('chat-list');
-  list.innerHTML = state.chats.length
-    ? state.chats.slice(0, 30).map(c => {
+  const q = normalize(chatSearch.value.trim());
+  document.getElementById('chat-search-wrap').hidden = state.chats.length < 2 && !q;
+  const found = q
+    ? state.chats.filter(c => normalize(c.title).includes(q) || c.messages.some(m => normalize(m.content).includes(q))).slice(0, 50)
+    : state.chats.slice(0, 30);
+  list.innerHTML = found.length
+    ? found.map(c => {
       const d = directionById(c.direction);
       return `<li><a href="#/chat/${esc(c.id)}" class="chat-link"${c.id === chatId ? ' aria-current="page"' : ''}>
         <span class="dot" data-color="${d.color}"></span><span class="chat-link-title">${esc(c.title)}</span></a></li>`;
     }).join('')
-    : '<li class="subtle chat-empty">Пока нет чатов</li>';
+    : `<li class="subtle chat-empty">${q ? 'Ничего не нашлось' : 'Пока нет чатов'}</li>`;
   list.querySelectorAll('.dot[data-color]').forEach(el => { el.style.background = el.dataset.color; });
 }
+chatSearch.before(document.createRange().createContextualFragment(icon('search')));
+chatSearch.addEventListener('input', () => renderChatList());
 
 /* ---------- Роутинг ---------- */
 function parseHash() {
