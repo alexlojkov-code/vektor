@@ -10,6 +10,9 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 h1, h2, h3, h4 { margin: 0; line-height: 1.1; font-weight: 600; letter-spacing: -.02em; }
+/* Длинные слова без пробелов (название бренда, ссылки) переносятся, а не растягивают страницу вбок */
+h1, h2, h3, h4 { overflow-wrap: anywhere; }
+p, li, dd { overflow-wrap: break-word; }
 p { margin: 0; }
 a { color: var(--accent); text-decoration: none; }
 button, input, textarea, select { font: inherit; color: inherit; }
