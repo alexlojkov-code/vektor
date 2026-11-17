@@ -3,3 +3,6 @@ node_modules
 !.env.example
 .vercel
 .DS_Store
+
+# Снимки сквозных проверок
+tests/e2e/out/
