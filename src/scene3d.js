@@ -396,8 +396,7 @@ export function start() {
       // Появление: из чуть меньшего размера; поворот по скроллу и за мышью
       const center = (r.top + r.height / 2 - h / 2) / h;
       it.holder.scale.setScalar(0.75 + easeOutBack(s) * 0.25);
-      // Постоянный поворот в сторону spin: даже в центре экрана объект виден под углом, а не плоско в лоб
-      it.holder.rotation.y = (reduce ? 0 : center * it.spin * 1.6 + mx * 0.5) + Math.sign(it.spin) * 0.4;
+      it.holder.rotation.y = reduce ? 0 : center * it.spin * 1.6 + mx * 0.5;
       it.holder.rotation.x = reduce ? 0 : -center * it.spin * 0.6 + my * 0.35;
       it.camera.aspect = r.width / r.height;
       it.camera.updateProjectionMatrix();
