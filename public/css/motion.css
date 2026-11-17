@@ -47,8 +47,9 @@
 }
 .mock-3d { position: relative; z-index: 1; margin-top: clamp(56px, 10.5vw, 168px); perspective: 1400px; }
 .mock-3d::before {
-  content: ''; position: absolute; left: 10%; right: 10%; bottom: -60px; height: 160px; z-index: -1;
-  background: radial-gradient(50% 50% at 50% 50%, rgba(139, 94, 255, .55), transparent 70%); filter: blur(30px);
+  /* Свечение заканчивается внутри секции: иначе секция обрезает его ровной линией */
+  content: ''; position: absolute; left: 10%; right: 10%; bottom: -16px; height: 110px; z-index: -1;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(139, 94, 255, .55), transparent 70%); filter: blur(24px);
 }
 .hero-stage .mock { margin: 0 auto; transform-origin: 50% 0; will-change: transform; }
 @media (prefers-reduced-motion: no-preference) {
@@ -85,9 +86,10 @@
 @media (max-width: 760px) {
   .obj-hero-l { width: 130px; left: -50px; top: 470px; }
   .obj-hero-r { width: 140px; right: -44px; top: 70px; }
-  /* Узкий экран: заголовки во всю ширину, поэтому объекты маленькие и в верхнем отступе секции */
-  .obj-features { width: 92px; right: -4px; top: -44px; }
-  .obj-directions, .obj-calc, .obj-cta-r { width: 92px; left: auto; right: -4px; top: -14px; }
+  /* Узкий экран: заголовки во всю ширину, поэтому объект стоит в увеличенном верхнем отступе секции,
+     целиком внутри неё — секции обрезают всё, что выходит за их край */
+  #features, #directions, #calculator, .cta-final { padding-top: 136px; }
+  .obj-features, .obj-directions, .obj-calc, .obj-cta-r { width: 112px; left: auto; right: 8px; top: 14px; }
   .obj-cta-l { display: none; }
 }
 

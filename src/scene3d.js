@@ -360,7 +360,7 @@ export function start() {
   let dpr = 1, vw = 0;
   function resize() {
     vw = innerWidth;
-    dpr = Math.min(devicePixelRatio || 1, vw < 760 ? 1.5 : 2);
+    dpr = Math.min(devicePixelRatio || 1, 3); // холсты маленькие: рисуем в полную плотность экрана, иначе на iPhone мыльно
     const size = Math.max(1, ...items.map(it => Math.ceil(Math.max(it.el.offsetWidth, it.el.offsetHeight))));
     renderer.setPixelRatio(dpr);
     renderer.setSize(size, size, false);
@@ -396,7 +396,8 @@ export function start() {
       // Появление: из чуть меньшего размера; поворот по скроллу и за мышью
       const center = (r.top + r.height / 2 - h / 2) / h;
       it.holder.scale.setScalar(0.75 + easeOutBack(s) * 0.25);
-      it.holder.rotation.y = reduce ? 0 : center * it.spin * 1.6 + mx * 0.5;
+      // Постоянный поворот в сторону spin: даже в центре экрана объект виден под углом, а не плоско в лоб
+      it.holder.rotation.y = (reduce ? 0 : center * it.spin * 1.6 + mx * 0.5) + Math.sign(it.spin) * 0.4;
       it.holder.rotation.x = reduce ? 0 : -center * it.spin * 0.6 + my * 0.35;
       it.camera.aspect = r.width / r.height;
       it.camera.updateProjectionMatrix();
