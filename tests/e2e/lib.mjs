@@ -45,7 +45,39 @@ export const overflow = page => page.evaluate(() => {
   return { page: document.documentElement.scrollWidth > w + 1, items: wide.slice(0, 3).map(e => `${e.tagName}.${String(e.className || '').split(' ')[0]}`) };
 });
 
-export const api = (page, path, body) => page.evaluate(async ({ path, body }) => {
+/* Плохо читаемый текст: цвет букв сравниваем с фоном под ними (WCAG). У градиента берём худший из цветов.
+   Полупрозрачные слои пропускаем и ищем плотный фон выше. Порог 3:1 — минимум для крупного текста. */
+export const lowContrast = page => page.evaluate(() => {
+  const parse = s => { const m = s.match(/rgba?\(([^)]+)\)/); if (!m) return null; const [r, g, b, a = 1] = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return { r, g, b, a }; };
+  const lum = ({ r, g, b }) => { const f = v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }; return .2126 * f(r) + .7152 * f(g) + .0722 * f(b); };
+  const ratio = (x, y) => { const [a, b] = [lum(x), lum(y)].sort((p, q) => q - p); return (a + .05) / (b + .05); };
+  const backgrounds = el => {
+    for (let e = el; e; e = e.parentElement) {
+      const cs = getComputedStyle(e);
+      if (cs.backgroundImage.includes('gradient')) {
+        const stops = (cs.backgroundImage.match(/rgba?\([^)]+\)/g) || []).map(parse).filter(c => c.a >= .5);
+        if (stops.length) return stops;
+      }
+      const bg = parse(cs.backgroundColor);
+      if (bg && bg.a >= .5) return [bg];
+    }
+    return [parse(getComputedStyle(document.body).backgroundColor) || { r: 255, g: 255, b: 255 }];
+  };
+  const bad = [];
+  for (const el of document.querySelectorAll('body *')) {
+    const own = [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
+    if (!own || el.closest('.sr-only, [hidden], .ticker, .hero-word, svg')) continue;
+    const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    if (!r.width || !r.height || cs.visibility === 'hidden' || +cs.opacity < .3 || cs.backgroundClip === 'text' || cs.webkitBackgroundClip === 'text') continue;
+    const fg = parse(cs.color);
+    if (!fg || fg.a < .3) continue;
+    const worst = Math.min(...backgrounds(el).map(b => ratio(fg, b)));
+    if (worst < 3) bad.push(`«${el.textContent.trim().slice(0, 30)}» ${worst.toFixed(1)}:1`);
+  }
+  return bad.slice(0, 5);
+});
+
+export const api =(page, path, body) => page.evaluate(async ({ path, body }) => {
   const res = await fetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json', 'x-pilot': '1' }, body: JSON.stringify(body) } : {});
   return { status: res.status, body: await res.json().catch(() => null) };
 }, { path, body });

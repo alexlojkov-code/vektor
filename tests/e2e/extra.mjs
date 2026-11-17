@@ -3,12 +3,12 @@
 // Создаёт тестовый аккаунт и удаляет его в конце; расходует 1–2 запроса к AI.
 import { webkit, devices } from 'playwright';
 import { randomUUID } from 'node:crypto';
-import { BASE as B, OUT, results, step, expect, watch, overflow, report } from './lib.mjs';
+import { BASE as B, OUT, results, step, expect, watch, overflow, lowContrast, report } from './lib.mjs';
 
 const browser = await webkit.launch();
 const SCREENS = ['/', '/app.html#/today', '/app.html#/chat', '/app.html#/tasks', '/app.html#/calc', '/app.html#/calc/funnel', '/app.html#/calc/cpa', '/app.html#/brand', '/privacy.html'];
 
-/* ---------- 1. Компьютер, планшет, светлая тема: все экраны без вылезания за край ---------- */
+/* ---------- 1. Компьютер, планшет, светлая тема: все экраны без вылезания за край и с читаемым текстом ---------- */
 for (const [label, opts] of [
   ['компьютер 1440', { viewport: { width: 1440, height: 900 } }],
   ['планшет 768', { ...devices['iPad Mini'], viewport: { width: 768, height: 1024 } }],
@@ -27,10 +27,12 @@ for (const [label, opts] of [
     await page.waitForTimeout(path === '/' ? 2500 : 900);
     const o = await overflow(page);
     if (o.page || o.items.length) bad.push(`${path}: ${o.page ? 'прокрутка ' : ''}${o.items.join(',')}`);
+    const dim = await lowContrast(page);
+    if (dim.length) bad.push(`${path}: плохо читается ${dim.join(', ')}`);
     const name = path.replace(/[^a-z]+/gi, '-').replace(/^-|-$/g, '') || 'landing';
     await page.screenshot({ path: `${OUT}/${label.split(' ')[0]}-${label.includes('светлая') ? 'light-' : ''}${name}.png` });
   }
-  results.push(`${bad.length ? 'НЕ ПРОШЁЛ' : 'ок       '} | ${label}: ${SCREENS.length} экранов без вылезания за край${bad.length ? ' — ' + bad.join('; ') : ''}`);
+  results.push(`${bad.length ? 'НЕ ПРОШЁЛ' : 'ок       '} | ${label}: ${SCREENS.length} экранов: ничего не вылезает за край, текст читается${bad.length ? ' — ' + bad.join('; ') : ''}`);
   await ctx.close();
 }
 

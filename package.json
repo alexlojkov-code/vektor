@@ -14,9 +14,10 @@
     "build:3d": "esbuild src/scene3d.js --bundle --format=esm --minify --target=es2020 --outfile=public/js/scene3d.min.js",
     "build:og": "node scripts/og-image.mjs",
     "eval:ai": "node scripts/ai-eval.mjs",
-    "test:e2e": "node tests/e2e/main.mjs && node tests/e2e/extra.mjs",
+    "test:e2e": "node tests/e2e/screens.mjs && node tests/e2e/main.mjs && node tests/e2e/extra.mjs",
     "test:e2e:main": "node tests/e2e/main.mjs",
-    "test:e2e:extra": "node tests/e2e/extra.mjs"
+    "test:e2e:extra": "node tests/e2e/extra.mjs",
+    "test:e2e:screens": "node tests/e2e/screens.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.1.0"

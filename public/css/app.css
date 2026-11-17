@@ -96,6 +96,8 @@ main { outline: none; }
 .tools-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .tool { display: grid; gap: 8px; color: var(--text); }
 .tool svg { width: 28px; height: 28px; color: var(--accent); }
+/* .tool задаёт цвет темы — на градиентной карточке текст всегда белый, иначе в светлой теме он тёмный на фиолетовом */
+.card-gradient.tool { color: #fff; }
 .card-gradient.tool svg { color: #fff; }
 .tool h3 { font-size: 22px; font-weight: 500; }
 .card-gradient .accent-word { color: #D9CCF0; }
