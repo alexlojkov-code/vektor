@@ -6,3 +6,8 @@ node_modules
 
 # Снимки сквозных проверок
 tests/e2e/out/
+
+# Рендер промо-ролика
+promo/out/
+promo/frames/
+promo/*.mp4
