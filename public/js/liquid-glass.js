@@ -105,7 +105,7 @@ function initRefraction() {
     if (!s) return;
     if (reduceTransparency.matches) { el.style.removeProperty('backdrop-filter'); return; }
     const thick = el.matches('.sidebar, .modal');
-    el.style.backdropFilter = `url(#${s.id}) blur(${thick ? 30 : 16}px) saturate(1.6) brightness(1.04)`;
+    el.style.backdropFilter = `url(#${s.id}) blur(${thick ? 22 : 14}px) saturate(1.6) brightness(1.04)`;
   }
 
   const scan = root => {
