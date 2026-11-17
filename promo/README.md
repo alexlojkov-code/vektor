@@ -20,6 +20,16 @@ node promo/render.mjs --from 0 --to 42    # кадры → promo/out/video.mp4 (
 ffmpeg -i promo/out/video.mp4 -i promo/out/audio.wav -c:v copy -c:a aac -b:a 256k -movflags +faststart promo/out/vektor-promo.mp4
 ```
 
+С озвучкой (голос macOS «Милена», музыка приглушается под речь):
+
+```bash
+node promo/voice.mjs                      # реплики по сценам → promo/out/voice.wav
+ffmpeg -i promo/out/audio.wav -i promo/out/voice.wav -filter_complex "[1]asplit=2[sc][v];[0]volume=0.75[m];[m][sc]sidechaincompress=threshold=0.02:ratio=8:attack=15:release=350[d];[d][v]amix=inputs=2:normalize=0:weights=1 1.7,loudnorm=I=-14:TP=-1:LRA=9" -ar 48000 promo/out/mix.wav
+ffmpeg -i promo/out/video.mp4 -i promo/out/mix.wav -map 0:v -map 1:a -c:v copy -c:a aac -b:a 256k -movflags +faststart "promo/Вектор — промо с озвучкой.mp4"
+```
+
+Текст диктора и окна реплик — в `promo/voice.mjs`. Другой голос: `node promo/voice.mjs --voice Yuri`, если он установлен в системе.
+
 Отдельные кадры для проверки: `node promo/render.mjs --stills 4.7,26.4`.
 
 Кадр зависит только от времени: `renderAt(t)` в `index.html`. Склейки стоят на тактах 120 BPM (6, 10, 18, 24, 30, 36 с), и `audio.mjs` использует те же таймкоды.
