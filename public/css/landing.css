@@ -46,7 +46,7 @@ body { overflow-x: hidden; }
 .hero-cta { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 36px; }
 
 /* Мокап интерфейса */
-.mock { position: relative; z-index: 1; margin: 72px auto 0; max-width: 960px; text-align: left; background: rgba(21, 15, 32, .85); border: 1px solid rgba(189, 173, 206, .16); border-radius: 28px; box-shadow: 0 40px 120px -30px rgba(139, 94, 255, .5); overflow: hidden; }
+.mock { position: relative; z-index: 1; margin: 72px auto 0; max-width: 960px; text-align: left; background: rgba(21, 15, 32, .85); border: 1px solid rgba(189, 173, 206, .16); border-radius: 28px; box-shadow: 0 24px 80px -36px rgba(139, 94, 255, .5); overflow: hidden; } /* тень гаснет внутри секции, без обрыва на её краю */
 .mock-bar { display: flex; align-items: center; gap: 6px; padding: 14px 18px; border-bottom: 1px solid rgba(189, 173, 206, .1); }
 .mock-bar i { width: 10px; height: 10px; border-radius: 50%; background: rgba(189, 173, 206, .25); }
 .mock-bar span { margin-left: 12px; font-size: 12px; color: var(--text-3); }
